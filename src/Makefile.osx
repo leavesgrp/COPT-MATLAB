@@ -1,0 +1,28 @@
+##
+## Makefile for compiling MATLAB interfaces of COPT on MacOS
+##
+
+CC     = clang
+CFLAGS = -O2 -std=c99 -fPIC -Werror -DNDEBUG -DMATLAB_MEX_FILE
+
+C_INCS = -I. -I$(MATLAB_HOME)/extern/include -I$(COPT_HOME)/include
+C_LIBS = -L$(COPT_HOME)/lib -lcopt -L$(MATLAB_HOME)/bin/maci64 -lmx -lmex -lmat
+
+C_MEXS = copt_read copt_solve copt_write
+
+all: $(C_MEXS)
+
+copt_read: copt_read.c coptmex.c coptmex.h coptinit.c
+	@$(CC) $(CFLAGS) $(C_INCS) -shared -install_name @rpath/copt_read.mexmaci64 -o copt_read.mexmaci64  copt_read.c  coptmex.c $(C_LIBS)
+	@cp copt_read.mexmaci64 ../lib
+
+copt_solve: copt_solve.c coptmex.c coptmex.h coptinit.c
+	@$(CC) $(CFLAGS) $(C_INCS) -shared -install_name @rpath/copt_solve.mexmaci64 -o copt_solve.mexmaci64 copt_solve.c coptmex.c $(C_LIBS)
+	@cp copt_solve.mexmaci64 ../lib
+
+copt_write: copt_write.c coptmex.c coptmex.h coptinit.c
+	@$(CC) $(CFLAGS) $(C_INCS) -shared -install_name @rpath/copt_write.mexmaci64 -o copt_write.mexmaci64 copt_write.c coptmex.c $(C_LIBS)
+	@cp copt_write.mexmaci64 ../lib
+
+clean:
+	@rm -f *.mexmaci64
