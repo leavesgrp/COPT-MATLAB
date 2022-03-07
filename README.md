@@ -2,7 +2,8 @@
 
 ## 安装
 
-本工具包提供了杉数求解器的MATLAB接口的预编译文件与C源代码文件。对于一般用户使用，打开MATLAB软件，切换用户到工具包所在的目录，执行
+本工具包提供了杉数求解器的MATLAB接口的预编译文件与C源代码文件[（下载ZIP包）](https://github.com/leavesgrp/COPT-MATLAB/releases/download/R20220307/copt-matlab.r20220307.zip)。
+对于一般用户使用，打开MATLAB软件，切换用户到工具包所在的目录，执行
 `coptmex_install` 命令即可。若正常安装，则输出下述信息：
 
 ```none
