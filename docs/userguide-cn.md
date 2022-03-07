@@ -165,6 +165,58 @@ Indicator约束相关的域：
 
     线性约束的右端项。
 
+二次规划相关的域：
+
+- `Q`
+
+  二次规划目标函数中的二次项。该域以实数稀疏矩阵表示。
+
+二次约束规划相关的域：
+
+- `quadcon`
+
+  模型中的二次约束。以MATLAB的 `struct` 类型表示，每个结构体包括以下8个域：
+
+  * `Qc`
+
+    二次约束中的二次项。该域以实数稀疏矩阵表示。
+
+  * `Qrow`、`Qcol` 和 `Qval`
+
+    二次约束中的二次项。分别表示二次项非零元的行索引、列索引和非零元素值。
+
+    **注意:** 域 `Qc` 和域 `Qrow` 、 `Qcol`、 `Qval` 不可同时为空，优先选取域 `Qc` 作为二次项。
+
+  * `q`
+
+    二次约束中的线性项。该域以稀疏实数向量表示，可为空。
+
+  * `sense`
+
+    二次约束的类型。不可为空。
+
+  * `rhs`
+
+    二次约束的右端项。不可为空。
+
+  * `name`
+
+    二次约束的名字。可为空。
+
+锥约束相关的域：
+
+- `cone`
+
+  模型中的二阶锥约束。以MATLAB的 `struct` 类型表示，每个结构体包括以下2个域：
+
+  * `type`
+
+    锥约束的类型。可取值为：1 表示标准锥，2 表示旋转锥。不可为空。
+
+  * `vars`
+
+    锥约束中变量的下标。不可为空。
+
 初始解信息相关的域：
 
 - `varbasis`
@@ -250,6 +302,10 @@ Indicator约束相关的域：
 
   单纯形迭代循环数。
 
+- `barrieriter`
+
+  内点法迭代循环数。
+
 - `nodecnt`
 
   分支定界搜索的节点数。
@@ -294,17 +350,51 @@ Indicator约束相关的域：
 
   线性规划中对偶变量的取值。
 
-- ``pool``
+- `qcslack`
 
-  对于整数规划模型，表示解池中的解。以MATLAB的 ``struct`` 类型表示，每个结构体中包括以下2个域：
+  二次约束规划中二次约束的取值。
 
-  - ``objval``
+- `pool`
+
+  对于整数规划模型，表示解池中的解。以MATLAB的 `struct` 类型表示，每个结构体中包括以下2个域：
+
+  - `objval`
 
     解池中解的目标函数值。
 
-  - ``xn``
+  - `xn`
 
     解池中解的变量取值。
+
+IIS结果相关信息，包括以下域：
+
+- `isminiis`
+
+  是否为极小IIS。
+
+- `varlb`
+
+  变量上界的IIS状态。
+
+- `varub`
+
+  变量下界的IIS状态。
+
+- `constrlb`
+
+  约束上界的IIS状态。
+
+- `construb`
+
+  约束下界的IIS状态。
+
+- `sos`
+
+  SOS约束的IIS状态。
+
+- `indicator`
+
+  Indicator约束的IIS状态。
 
 ### 文件读写
 
@@ -422,6 +512,52 @@ Indicator约束相关的域：
 
     lpparam.TimeLimit = 10;
     lp_solution = copt_solve('testlp.lp', lpparam);
+    ```
+
+- `copt_computeiis` 函数
+
+  - **概要**
+
+    `iisinfo = copt_computeiis(probfile)`
+
+    `iisinfo = copt_computeiis(probfile, parameter)`
+
+    `iisinfo = copt_computeiis(problem)`
+
+    `iisinfo = copt_computeiis(problem, parameter)`
+
+  - **描述**
+
+    若输入函数为模型文件及参数信息对象，则直接读取模型文件及参数信息对象中的设置并计算指定模型的IIS，
+    计算完成后返回IIS结果信息对象。
+    若输入函数为模型信息对象和参数信息对象，则提取模型信息对象和参数信息对象中的相关信息，
+    在内部构建模型并计算IIS，计算完成后返回IIS结果信息对象。
+
+  - **参量**
+
+    `iisinfo`
+
+      IIS结果信息对象。该变量类型为MATLAB的 `struct` 类型。
+
+    `probfile`
+
+      模型文件名。目前支持MPS格式、LP格式和COPT二进制格式的模型，根据文件后缀名自动识别。
+
+    `parameter`
+
+      参数信息对象。该变量类型为MATLAB的 `struct` 类型。
+
+    `problem`
+
+      模型信息对象。该变量类型为MATLAB的 `struct` 类型。
+
+  - **示例**
+
+    ```matlab
+    iisinfo = copt_computeiis('testmip.mps');
+
+    lpparam.TimeLimit = 10;
+    iisinfo = copt_computeiis('testlp.lp', lpparam);
     ```
 
 ### 其它函数

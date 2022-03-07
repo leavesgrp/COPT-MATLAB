@@ -8,7 +8,7 @@ CFLAGS = /nologo /O2 /MT /WX /DNDEBUG /DMATLAB_MEX_FILE
 C_INCS = -I. -I"$(MATLAB_HOME)\extern\include" -I"$(COPT_HOME)\include"
 C_LIBS = /LIBPATH:"$(COPT_HOME)\lib" copt.lib /LIBPATH:"$(MATLAB_HOME)\extern\lib\win64\microsoft" libmx.lib libmex.lib libmat.lib
 
-C_MEXS = copt_read copt_solve copt_write
+C_MEXS = copt_read copt_solve copt_write copt_computeiis
 
 all: $(C_MEXS)
 
@@ -23,6 +23,10 @@ copt_solve: copt_solve.c coptmex.c coptmex.h coptinit.c
 copt_write: copt_write.c coptmex.c coptmex.h coptinit.c
 	@$(CC) $(CFLAGS) $(C_INCS) copt_write.c coptmex.c /link /dll /out:copt_write.mexw64 $(C_LIBS) /export:mexFunction
 	@copy /Y copt_write.mexw64 ..\lib > nul
+
+copt_computeiis: copt_computeiis.c coptmex.c coptmex.h coptinit.c
+	@$(CC) $(CFLAGS) $(C_INCS) copt_computeiis.c coptmex.c /link /dll /out:copt_computeiis.mexw64 $(C_LIBS) /export:mexFunction
+	@copy /Y copt_computeiis.mexw64 ..\lib > nul
 
 clean:
 	@del /s /q *.mexw64 *.exp *.lib *.obj > nul

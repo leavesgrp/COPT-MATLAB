@@ -67,9 +67,26 @@
 #define COPTMEX_MODEL_INDICSENSE   "sense"
 #define COPTMEX_MODEL_INDICRHS     "rhs"
 
+#define COPTMEX_MODEL_QUADOBJ      "Q"
+
+#define COPTMEX_MODEL_QUADCON      "quadcon"
+#define COPTMEX_MODEL_QCSPMAT      "Qc"
+#define COPTMEX_MODEL_QCROW        "Qrow"
+#define COPTMEX_MODEL_QCCOL        "Qcol"
+#define COPTMEX_MODEL_QCVAL        "Qval"
+#define COPTMEX_MODEL_QCLINEAR     "q"
+#define COPTMEX_MODEL_QCSENSE      "sense"
+#define COPTMEX_MODEL_QCRHS        "rhs"
+#define COPTMEX_MODEL_QCNAME       "name"
+
+#define COPTMEX_MODEL_CONE         "cone"
+#define COPTMEX_MODEL_CONETYPE     "type"
+#define COPTMEX_MODEL_CONEVARS     "vars"
+
 /* The result struct fields */
 #define COPTMEX_RESULT_STATUS      "status"
 #define COPTMEX_RESULT_SIMITER     "simplexiter"
+#define COPTMEX_RESULT_BARITER     "barrieriter"
 #define COPTMEX_RESULT_NODECNT     "nodecnt"
 #define COPTMEX_RESULT_BESTGAP     "bestgap"
 #define COPTMEX_RESULT_SOLVETIME   "solvingtime"
@@ -82,12 +99,23 @@
 #define COPTMEX_RESULT_SLACK       "slack"
 #define COPTMEX_RESULT_DUAL        "pi"
 
+#define COPTMEX_RESULT_QCSLACK     "qcslack"
+
 #define COPTMEX_RESULT_POOL        "pool"
 #define COPTMEX_RESULT_POOLOBJ     "objval"
 #define COPTMEX_RESULT_POOLXN      "xn"
 
 /* The advanced information */
 #define COPTMEX_ADVINFO_MIPSTART   "start"
+
+/* The IIS result struct fields */
+#define COPTMEX_IIS_ISMINIIS       "isminiis"
+#define COPTMEX_IIS_VARLB          "varlb"
+#define COPTMEX_IIS_VARUB          "varub"
+#define COPTMEX_IIS_CONSTRLB       "constrlb"
+#define COPTMEX_IIS_CONSTRUB       "construb"
+#define COPTMEX_IIS_SOS            "sos"
+#define COPTMEX_IIS_INDICATOR      "indicator"
 
 /* The version fields */
 #define COPTMEX_VERSION_MAJOR      "major"
@@ -142,6 +170,20 @@ typedef struct coptmex_cprob_s {
   /* The optional indicator part */
   int    nIndicator;
 
+  /* The optional cone part */
+  int    nCone;
+  int    nConeSize;
+  int    *coneType;
+  int    *coneBeg;
+  int    *coneCnt;
+  int    *coneIdx;
+
+  /* The optional Q objective part */
+  int    nQElem;
+
+  /* The optional quadratic constraint part */
+  int    nQConstr;
+
   /* The optional advanced information */
   int    hasBasis;
   int    *colBasis;
@@ -169,6 +211,15 @@ typedef struct coptmex_mprob_s {
   /* The optional indicator part of model */
   mxArray *indicator;
 
+  /* The optional cone part of model */
+  mxArray *cone;
+
+  /* The optional Q objective part of model */
+  mxArray *qobj;
+
+  /* The optional quadratic constraint part of model */
+  mxArray *quadcon;
+
   /* The optional advanced information */
   mxArray *varbasis;
   mxArray *constrbasis;
@@ -184,11 +235,13 @@ typedef struct coptmex_mprob_s {
 typedef struct coptmex_clpsol_s {
   int    nRow;
   int    nCol;
+  int    nQConstr;
   int    hasBasis;
   int    hasLpSol;
 
   int    nStatus;
   int    nSimplexIter;
+  int    nBarrierIter;
   double dSolvingTime;
   double dObjVal;
 
@@ -198,6 +251,8 @@ typedef struct coptmex_clpsol_s {
   double *colDual;
   double *rowSlack;
   double *rowDual;
+
+  double *qRowSlack;
 } coptmex_clpsol;
 
 typedef struct coptmex_cmipsol_s {
@@ -218,9 +273,20 @@ typedef struct coptmex_cmipsol_s {
   int    nSolPool;
 } coptmex_cmipsol;
 
+typedef struct coptmex_ciisinfo_s {
+  int    isMinIIS;
+  int    *colLowerIIS;
+  int    *colUpperIIS;
+  int    *rowLowerIIS;
+  int    *rowUpperIIS;
+  int    *sosIIS;
+  int    *indicatorIIS;
+} coptmex_ciisinfo;
+
 typedef struct coptmex_mlpsol_s {
   mxArray *status;
   mxArray *simplexiter;
+  mxArray *barrieriter;
   mxArray *solvingtime;
   mxArray *objval;
   mxArray *varbasis;
@@ -229,6 +295,7 @@ typedef struct coptmex_mlpsol_s {
   mxArray *redcost;
   mxArray *slack;
   mxArray *dual;
+  mxArray *qcslack;
 } coptmex_mlpsol;
 
 typedef struct coptmex_mmipsol_s {
@@ -243,6 +310,16 @@ typedef struct coptmex_mmipsol_s {
 
   mxArray *solpool;
 } coptmex_mmipsol;
+
+typedef struct coptmex_miisinfo_s {
+  mxArray *isminiis;
+  mxArray *varlb;
+  mxArray *varub;
+  mxArray *constrlb;
+  mxArray *construb;
+  mxArray *sos;
+  mxArray *indicator;
+} coptmex_miisinfo;
 
 /* Display error message */
 void COPTMEX_errorMsg(int errcode, const char *errinfo);
@@ -268,5 +345,8 @@ int COPTMEX_readModel(copt_prob *prob, const mxArray *in_model);
 int COPTMEX_writeModel(copt_prob *prob, const mxArray *out_file);
 /* Extract and load data to model */
 int COPTMEX_loadModel(copt_prob *prob, const mxArray *in_model);
+
+/* Compute IIS for infeasible problem */
+int COPTMEX_computeIIS(copt_prob *prob, mxArray **out_iis, int ifRetResult);
 
 #endif

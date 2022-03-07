@@ -166,6 +166,61 @@ Fields on Indicator constraints
 
     Right-hand-side vector of the linear constraints.
 
+Fields on Quadratic Programming 
+
+- `Q`
+
+  Quadratic terms in quadratic programming. This field is a `real sparse matrix`.
+
+Fields on Quadratic Constrained Programming
+
+- `quadcon`
+
+  Quadratic constraints. This field is a MATLAB `struct`, and each consists of 8 fields shown below:
+
+  * `Qc`
+
+    Quadratic terms in quadratic constraint. This field is a `real sparse matrix`.
+
+  * `Qrow`, `Qcol` and `Qval`
+
+    Quadratic terms in quadratic constraint, which represents row indices, column indices
+    and nonzero elements respectively.
+
+    **NOTE:** Field `Qc` and `Qrow`, `Qcol`, `Qval` cannot be empty at the same time,
+    field `Qc` will be used if they are both non-empty.
+
+  * `q`
+
+    Linear terms in quadratic constraint. This field is a sparse vector. Can be empty.
+
+  * `sense`
+
+    Type of quadratic constraint. Must not be empty.
+
+  * `rhs`
+
+    Right hand side of quadratic constraint. Must not be empty.
+
+  * `name`
+
+    Name of quadratic constraint. Can be empty.
+
+Fileds on Conic Programming
+
+- `cone`
+
+  Conic constraints. This field is a MATLAB `struct`, and each consists of 2 fields shown below:
+
+  * `type`
+
+    Type of conic constraint. Options values are: 1 means standard cone, 2 means rotated cone.
+    Must not be empty.
+
+  * `vars`
+
+    Index of variables in conic constraint. Must not be empty.
+
 Fields on Initial solution
 
 - `varbasis`
@@ -252,6 +307,10 @@ Result Info is of type MATLAB `struct` and stores the result and status of solut
 
   Number of the simplex iterations.
 
+- `barrieriter`
+
+  Number of the barrier iterations.
+
 - `nodecnt`
 
   Number of nodes searched by branch and bound.
@@ -296,18 +355,52 @@ Result Info is of type MATLAB `struct` and stores the result and status of solut
 
   Dual variables for LP.
 
-- ``pool``
+- `qcslack`
+
+  Activities for quadratic constraints.
+
+- `pool`
 
   Solutions from solution pool of MIP problem. This field is represented by a MATLAB ``struct`` variable,
   and consists of two sub-fields:
 
-  - ``objval``
+  - `objval`
 
     Objective values for solution pool.
 
-  - ``xn``
+  - `xn`
 
     Values of columns for solution pool.
+
+IIS result information, includes:
+
+- `isminiis`
+
+  Whether the computed IIS is minimal.
+
+- `varlb`
+
+  IIS status for lower bounds of variables.
+
+- `varub`
+
+  IIS status for upper bounds of variables.
+
+- `constrlb`
+
+  IIS status for lower bounds of constraints.
+
+- `construb`
+
+  IIS status for upper bounds of constraints.
+
+- `sos`
+
+  IIS status for SOS constraints.
+
+- `indicator`
+
+  IIS status for indicator constraints.
 
 ### File I/O
 
@@ -426,6 +519,52 @@ Result Info is of type MATLAB `struct` and stores the result and status of solut
 
     lpparam.TimeLimit = 10;
     lp_solution = copt_solve('testlp.lp', lpparam);
+    ```
+
+- `copt_computeiis` function
+
+  - **Synopsis**
+
+    `iisinfo = copt_computeiis(probfile)`
+
+    `iisinfo = copt_computeiis(probfile, parameter)`
+
+    `iisinfo = copt_computeiis(problem)`
+
+    `iisinfo = copt_computeiis(problem, parameter)`
+
+  - **Description**
+
+    The function has multiple uses given different inputs. 
+
+    If the input is a model filename with a parameter info struct, the function reads the model and parameters from the input, computes IIS for the problem and returns an IIS result info struct.
+    If the input is a model info struct with a parameter info struct, the function extracts the relevant information from the input, constructs the model, computes IIS for the problem and returns an IIS result info struct.
+
+  - **Arguments**
+
+    `iisinfo`
+
+      IIS result info struct. Type of MATLAB `struct`.
+
+    `probfile`
+
+      File name of the model to import. Currently support MPS, LP and COPT binary format. Automatically identified by the solver.
+
+    `parameter`
+
+      Parameter info struct. Type of MATLAB `struct`.
+
+    `problem`
+
+      Model info struct. Type of MATLAB `struct`.
+
+  - **Example**
+
+    ```matlab
+    iisinfo = copt_computeiis('testmip.mps');
+
+    lpparam.TimeLimit = 10;
+    iisinfo = copt_computeiis('testlp.lp', lpparam);
     ```
 
 ### Other functions

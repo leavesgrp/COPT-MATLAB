@@ -33,7 +33,7 @@ static void COPTMEX_initCProb(coptmex_cprob *cprob) {
   cprob->colNames   = NULL;
   cprob->rowNames   = NULL;
 
-  // The optional SOS-part
+  // The optional SOS part
   cprob->nSos       = 0;
   cprob->nSosSize   = 0;
   cprob->sosType    = NULL;
@@ -44,6 +44,20 @@ static void COPTMEX_initCProb(coptmex_cprob *cprob) {
 
   // The optional indicator part
   cprob->nIndicator = 0;
+
+  // The optional cone part
+  cprob->nCone      = 0;
+  cprob->nConeSize  = 0;
+  cprob->coneType   = NULL;
+  cprob->coneBeg    = NULL;
+  cprob->coneCnt    = NULL;
+  cprob->coneIdx    = NULL;
+
+  // The optional Q objective part
+  cprob->nQElem     = 0;
+
+  // The optional quadratic constraint part
+  cprob->nQConstr   = 0;
 
   // The optional advanced information
   cprob->hasBasis   = 0;
@@ -74,6 +88,15 @@ static void COPTMEX_initMProb(coptmex_mprob *mprob) {
   // The optional indicator part
   mprob->indicator   = NULL;
 
+  // The optional cone part
+  mprob->cone        = NULL;
+
+  // The optional Q objective part
+  mprob->qobj        = NULL;
+
+  // The optional quadratic constraint part
+  mprob->quadcon     = NULL;
+
   // The optional advanced information
   mprob->varbasis    = NULL;
   mprob->constrbasis = NULL;
@@ -91,11 +114,13 @@ static void COPTMEX_initMProb(coptmex_mprob *mprob) {
 static void COPTMEX_initCLpSol(coptmex_clpsol *clpsol) {
   clpsol->nRow         = 0;
   clpsol->nCol         = 0;
+  clpsol->nQConstr     = 0;
   clpsol->hasBasis     = 0;
   clpsol->hasLpSol     = 0;
 
   clpsol->nStatus      = COPT_LPSTATUS_UNSTARTED;
   clpsol->nSimplexIter = 0;
+  clpsol->nBarrierIter = 0;
   clpsol->dSolvingTime = 0.0;
   clpsol->dObjVal      = COPT_INFINITY;
 
@@ -105,6 +130,8 @@ static void COPTMEX_initCLpSol(coptmex_clpsol *clpsol) {
   clpsol->colDual      = NULL;
   clpsol->rowSlack     = NULL;
   clpsol->rowDual      = NULL;
+
+  clpsol->qRowSlack    = NULL;
   return;
 }
 
@@ -128,10 +155,22 @@ static void COPTMEX_initCMipSol(coptmex_cmipsol *cmipsol) {
   return;
 }
 
+/* Initialize C-style IIS information */
+static void COPTMEX_initCIISInfo(coptmex_ciisinfo *ciisinfo) {
+  ciisinfo->isMinIIS     = 0;
+  ciisinfo->colLowerIIS  = NULL;
+  ciisinfo->colUpperIIS  = NULL;
+  ciisinfo->rowLowerIIS  = NULL;
+  ciisinfo->rowUpperIIS  = NULL;
+  ciisinfo->sosIIS       = NULL;
+  ciisinfo->indicatorIIS = NULL;
+}
+
 /* Initialize MEX-style LP solution */
 static void COPTMEX_initMLpSol(coptmex_mlpsol *mlpsol) {
   mlpsol->status      = NULL;
   mlpsol->simplexiter = NULL;
+  mlpsol->barrieriter = NULL;
   mlpsol->solvingtime = NULL;
   mlpsol->objval      = NULL;
   mlpsol->varbasis    = NULL;
@@ -140,6 +179,7 @@ static void COPTMEX_initMLpSol(coptmex_mlpsol *mlpsol) {
   mlpsol->redcost     = NULL;
   mlpsol->slack       = NULL;
   mlpsol->dual        = NULL;
+  mlpsol->qcslack     = NULL;
   return;
 }
 
@@ -156,6 +196,17 @@ static void COPTMEX_initMMipSol(coptmex_mmipsol *mmipsol) {
 
   mmipsol->solpool     = NULL;
   return;
+}
+
+/* Initialize MEX-style IIS information */
+static void COPTMEX_initMIISInfo(coptmex_miisinfo *miisinfo) {
+  miisinfo->isminiis  = NULL;
+  miisinfo->varlb     = NULL;
+  miisinfo->varub     = NULL;
+  miisinfo->constrlb  = NULL;
+  miisinfo->construb  = NULL;
+  miisinfo->sos       = NULL;
+  miisinfo->indicator = NULL;
 }
 
 /* Check all parts of a problem */
@@ -435,6 +486,7 @@ static int COPTMEX_checkModel(coptmex_mprob *mprob) {
     }
   }
 
+  // 'indicator'
   if (mprob->indicator != NULL) {
     if (!mxIsStruct(mprob->indicator)) {
       isvalid = 0;
@@ -542,6 +594,218 @@ static int COPTMEX_checkModel(coptmex_mprob *mprob) {
           isvalid = 0;
           snprintf(msgbuf, COPT_BUFFSIZE, "problem.%s(%d).%s", COPTMEX_MODEL_INDICATOR,
                    i, COPTMEX_MODEL_INDICRHS);
+          COPTMEX_errorMsg(COPTMEX_ERROR_BAD_TYPE, msgbuf);
+          goto exit_cleanup;
+        }
+      }
+    }
+  }
+
+  // 'cone'
+  if (mprob->cone != NULL) {
+    if (!mxIsStruct(mprob->cone)) {
+      isvalid = 0;
+      snprintf(msgbuf, COPT_BUFFSIZE, "problem.%s", COPTMEX_MODEL_CONE);
+      COPTMEX_errorMsg(COPTMEX_ERROR_BAD_TYPE, msgbuf);
+      goto exit_cleanup;
+    }
+
+    for (int i = 0; i < mxGetNumberOfElements(mprob->cone); ++i) {
+      mxArray *conetype = mxGetField(mprob->cone, i, COPTMEX_MODEL_CONETYPE);
+      mxArray *conevars = mxGetField(mprob->cone, i, COPTMEX_MODEL_CONEVARS);
+
+      if (conetype == NULL) {
+        isvalid = 0;
+        snprintf(msgbuf, COPT_BUFFSIZE, "problem.%s(%d).%s", COPTMEX_MODEL_CONE,
+                 i, COPTMEX_MODEL_CONETYPE);
+        COPTMEX_errorMsg(COPTMEX_ERROR_BAD_DATA, msgbuf);
+        goto exit_cleanup;
+      } else {
+        if (!mxIsScalar(conetype) || mxIsChar(conetype)) {
+          isvalid = 0;
+          snprintf(msgbuf, COPT_BUFFSIZE, "problem.%s(%d).%s", COPTMEX_MODEL_CONE,
+                   i, COPTMEX_MODEL_CONETYPE);
+          COPTMEX_errorMsg(COPTMEX_ERROR_BAD_TYPE, msgbuf);
+          goto exit_cleanup;
+        }
+      }
+
+      if (conevars == NULL) {
+        isvalid = 0;
+        snprintf(msgbuf, COPT_BUFFSIZE, "problem.%s(%d).%s", COPTMEX_MODEL_CONE,
+                 i, COPTMEX_MODEL_CONEVARS);
+        COPTMEX_errorMsg(COPTMEX_ERROR_BAD_DATA, msgbuf);
+        goto exit_cleanup;
+      } else {
+        if (!mxIsDouble(conevars) || mxIsScalar(conevars) || mxIsSparse(conevars)) {
+          isvalid = 0;
+          snprintf(msgbuf, COPT_BUFFSIZE, "problem.%s(%d).%s", COPTMEX_MODEL_CONE,
+                   i, COPTMEX_MODEL_CONEVARS);
+          COPTMEX_errorMsg(COPTMEX_ERROR_BAD_TYPE, msgbuf);
+          goto exit_cleanup;
+        }
+      }
+    }
+  }
+
+  // 'Q'
+  if (mprob->qobj != NULL) {
+    if (!mxIsSparse(mprob->qobj)) {
+      isvalid = 0;
+      snprintf(msgbuf, COPT_BUFFSIZE, "problem.%s", COPTMEX_MODEL_QUADOBJ);
+      COPTMEX_errorMsg(COPTMEX_ERROR_BAD_DATA, msgbuf);
+      goto exit_cleanup;
+    }
+    if (mxGetM(mprob->qobj) != ncol || mxGetN(mprob->qobj) != ncol) {
+      isvalid = 0;
+      snprintf(msgbuf, COPT_BUFFSIZE, "problem.%s", COPTMEX_MODEL_QUADOBJ);
+      COPTMEX_errorMsg(COPTMEX_ERROR_BAD_NUM, msgbuf);
+      goto exit_cleanup;
+    }
+  }
+
+  // 'quadcon'
+  if (mprob->quadcon != NULL) {
+    if (!mxIsStruct(mprob->quadcon)) {
+      isvalid = 0;
+      snprintf(msgbuf, COPT_BUFFSIZE, "problem.%s", COPTMEX_MODEL_QUADCON);
+      COPTMEX_errorMsg(COPTMEX_ERROR_BAD_TYPE, msgbuf);
+      goto exit_cleanup;
+    }
+
+    for (int i = 0; i < mxGetNumberOfElements(mprob->quadcon); ++i) {
+      mxArray *QcMat = mxGetField(mprob->quadcon, i, COPTMEX_MODEL_QCSPMAT);
+      mxArray *QcRow = mxGetField(mprob->quadcon, i, COPTMEX_MODEL_QCROW);
+      mxArray *QcCol = mxGetField(mprob->quadcon, i, COPTMEX_MODEL_QCCOL);
+      mxArray *QcVal = mxGetField(mprob->quadcon, i, COPTMEX_MODEL_QCVAL);
+      mxArray *QcLinear = mxGetField(mprob->quadcon, i, COPTMEX_MODEL_QCLINEAR);
+      mxArray *QcSense = mxGetField(mprob->quadcon, i, COPTMEX_MODEL_QCSENSE);
+      mxArray *QcRhs = mxGetField(mprob->quadcon, i, COPTMEX_MODEL_QCRHS);
+      mxArray *QcName = mxGetField(mprob->quadcon, i, COPTMEX_MODEL_QCNAME);
+
+      if (QcMat != NULL) {
+        if (!mxIsSparse(QcMat)) {
+          isvalid = 0;
+          snprintf(msgbuf, COPT_BUFFSIZE, "problem.%s(%d).%s", COPTMEX_MODEL_QUADCON, 
+                   i, COPTMEX_MODEL_QCSPMAT);
+          COPTMEX_errorMsg(COPTMEX_ERROR_BAD_DATA, msgbuf);
+          goto exit_cleanup;
+        }
+        if (mxGetM(QcMat) != mxGetN(QcMat)) {
+          isvalid = 0;
+          snprintf(msgbuf, COPT_BUFFSIZE, "problem.%s(%d).%s", COPTMEX_MODEL_QUADCON, 
+                   i, COPTMEX_MODEL_QCSPMAT);
+          COPTMEX_errorMsg(COPTMEX_ERROR_BAD_NUM, msgbuf);
+          goto exit_cleanup;
+        }
+      } else {
+        if (QcRow != NULL && QcCol != NULL && QcVal != NULL) {
+          if (!mxIsDouble(QcRow)) {
+            isvalid = 0;
+            snprintf(msgbuf, COPT_BUFFSIZE, "problem.%s(%d).%s", COPTMEX_MODEL_QUADCON, 
+                     i, COPTMEX_MODEL_QCROW);
+            COPTMEX_errorMsg(COPTMEX_ERROR_BAD_TYPE, msgbuf);
+            goto exit_cleanup;
+          }
+          if (!mxIsDouble(QcCol)) {
+            isvalid = 0;
+            snprintf(msgbuf, COPT_BUFFSIZE, "problem.%s(%d).%s", COPTMEX_MODEL_QUADCON, 
+                     i, COPTMEX_MODEL_QCCOL);
+            COPTMEX_errorMsg(COPTMEX_ERROR_BAD_TYPE, msgbuf);
+            goto exit_cleanup;
+          }
+          if (!mxIsDouble(QcVal)) {
+            isvalid = 0;
+            snprintf(msgbuf, COPT_BUFFSIZE, "problem.%s(%d).%s", COPTMEX_MODEL_QUADCON, 
+                     i, COPTMEX_MODEL_QCVAL);
+            COPTMEX_errorMsg(COPTMEX_ERROR_BAD_TYPE, msgbuf);
+            goto exit_cleanup;
+          }
+          if (mxGetNumberOfElements(QcRow) != mxGetNumberOfElements(QcCol)) {
+            isvalid = 0;
+            snprintf(msgbuf, COPT_BUFFSIZE, "problem.%s(%d).%s", COPTMEX_MODEL_QUADCON, 
+                     i, COPTMEX_MODEL_QCROW);
+            COPTMEX_errorMsg(COPTMEX_ERROR_BAD_NUM, msgbuf);
+            snprintf(msgbuf, COPT_BUFFSIZE, "problem.%s(%d).%s", COPTMEX_MODEL_QUADCON, 
+                     i, COPTMEX_MODEL_QCCOL);
+            COPTMEX_errorMsg(COPTMEX_ERROR_BAD_NUM, msgbuf);
+            goto exit_cleanup;
+          }
+          if (mxGetNumberOfElements(QcRow) != mxGetNumberOfElements(QcVal)) {
+            isvalid = 0;
+            snprintf(msgbuf, COPT_BUFFSIZE, "problem.%s(%d).%s", COPTMEX_MODEL_QUADCON, 
+                     i, COPTMEX_MODEL_QCVAL);
+            COPTMEX_errorMsg(COPTMEX_ERROR_BAD_NUM, msgbuf);
+            goto exit_cleanup;
+          }
+        }
+      }
+
+      if (QcLinear != NULL) {
+        if (!mxIsDouble(QcLinear)) {
+          isvalid = 0;
+          snprintf(msgbuf, COPT_BUFFSIZE, "problem.%s(%d).%s", COPTMEX_MODEL_QUADCON, 
+                   i, COPTMEX_MODEL_QCLINEAR);
+          COPTMEX_errorMsg(COPTMEX_ERROR_BAD_TYPE, msgbuf);
+          goto exit_cleanup;
+        }
+        if (!mxIsSparse(QcLinear)) {
+          if (mxGetNumberOfElements(QcLinear) != ncol) {
+            isvalid = 0;
+            snprintf(msgbuf, COPT_BUFFSIZE, "problem.%s(%d).%s", COPTMEX_MODEL_QUADCON,
+                     i, COPTMEX_MODEL_QCLINEAR);
+            COPTMEX_errorMsg(COPTMEX_ERROR_BAD_NUM, msgbuf);
+            goto exit_cleanup;
+          }
+        } else {
+          if (mxGetN(QcLinear) != 1) {
+            isvalid = 0;
+            snprintf(msgbuf, COPT_BUFFSIZE, "problem.%s(%d).%s", COPTMEX_MODEL_QUADCON,
+                     i, COPTMEX_MODEL_QCLINEAR);
+            COPTMEX_errorMsg(COPTMEX_ERROR_BAD_NUM, msgbuf);
+            goto exit_cleanup;
+          }
+        }
+      }
+
+      if (QcMat == NULL && QcRow == NULL && QcCol == NULL && QcVal == NULL && QcLinear == NULL) {
+        isvalid = 0;
+        snprintf(msgbuf, COPT_BUFFSIZE, "problem.%s(%d)", COPTMEX_MODEL_QUADCON, i);
+        COPTMEX_errorMsg(COPTMEX_ERROR_BAD_DATA, msgbuf);
+        goto exit_cleanup;
+      }
+
+      if (QcSense != NULL) {
+        if (!mxIsChar(QcSense) || !mxIsScalar(QcSense)) {
+          isvalid = 0;
+          snprintf(msgbuf, COPT_BUFFSIZE, "problem.%s(%d).%s", COPTMEX_MODEL_QUADCON, 
+                   i, COPTMEX_MODEL_QCSENSE);
+          COPTMEX_errorMsg(COPTMEX_ERROR_BAD_TYPE, msgbuf);
+          goto exit_cleanup;
+        }
+      }
+
+      if (QcRhs == NULL) {
+        isvalid = 0;
+        snprintf(msgbuf, COPT_BUFFSIZE, "problem.%s(%d).%s", COPTMEX_MODEL_QUADCON, 
+                 i, COPTMEX_MODEL_QCRHS);
+        COPTMEX_errorMsg(COPTMEX_ERROR_BAD_DATA, msgbuf);
+        goto exit_cleanup;
+      } else {
+        if (mxIsChar(QcRhs) || !mxIsScalar(QcRhs)) {
+          isvalid = 0;
+          snprintf(msgbuf, COPT_BUFFSIZE, "problem.%s(%d).%s", COPTMEX_MODEL_QUADCON, 
+                   i, COPTMEX_MODEL_QCRHS);
+          COPTMEX_errorMsg(COPTMEX_ERROR_BAD_TYPE, msgbuf);
+          goto exit_cleanup;
+        }
+      }
+
+      if (QcName != NULL) {
+        if (!mxIsChar(QcName)) {
+          isvalid = 0;
+          snprintf(msgbuf, COPT_BUFFSIZE, "problem.%s(%d).%s", COPTMEX_MODEL_QUADCON, 
+                   i, COPTMEX_MODEL_QCNAME);
           COPTMEX_errorMsg(COPTMEX_ERROR_BAD_TYPE, msgbuf);
           goto exit_cleanup;
         }
