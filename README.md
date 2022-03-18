@@ -2,7 +2,7 @@
 
 ## 安装
 
-本工具包提供了杉数求解器的MATLAB接口的预编译文件与C源代码文件[（下载ZIP包）](https://github.com/leavesgrp/COPT-MATLAB/releases/download/R20220307/copt-matlab.r20220307.zip)。
+本工具包提供了杉数求解器的MATLAB接口的C源代码文件和预编译包[（下载ZIP包）](https://github.com/leavesgrp/COPT-MATLAB/releases/download/R20220307/copt-matlab.binary.r20220307.zip)。
 对于一般用户使用，打开MATLAB软件，切换用户到工具包所在的目录，执行
 `coptmex_install` 命令即可。若正常安装，则输出下述信息：
 
@@ -136,7 +136,8 @@ Constraint basis status:
 
 ## Installation
 
-The `COPT-MATLAB Toolbox` provides the pre-compiled binaries and C source codes for the COPT-MATLAB interface. Users can change to the directory of our toolbox within the MATLAB command window and execute
+The `COPT-MATLAB Toolbox` provides C source codes and pre-compiled binary package for the COPT-MATLAB interface [(Download binary package)](https://github.com/leavesgrp/COPT-MATLAB/releases/download/R20220307/copt-matlab.binary.r20220307.zip).
+Users can change to the directory of our toolbox within the MATLAB command window and execute
 
 `coptmex_install` command to install the `COPT-MATLAB Toolbox`. On successful installation, you will see the following output message in the command window
 
