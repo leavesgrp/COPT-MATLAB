@@ -83,6 +83,27 @@
 #define COPTMEX_MODEL_CONETYPE     "type"
 #define COPTMEX_MODEL_CONEVARS     "vars"
 
+#define COPTMEX_MODEL_CONEDATA     "conedata"
+#define COPTMEX_MODEL_CONE_OBJSEN  "objsen"
+#define COPTMEX_MODEL_CONE_OBJCON  "objcon"
+#define COPTMEX_MODEL_CONE_C       "c"
+#define COPTMEX_MODEL_CONE_A       "A"
+#define COPTMEX_MODEL_CONE_B       "b"
+#define COPTMEX_MODEL_CONE_K       "K"
+#define COPTMEX_MODEL_CONE_Q       "Q"
+
+#define COPTMEX_MODEL_CONEK_F      "f"
+#define COPTMEX_MODEL_CONEK_L      "l"
+#define COPTMEX_MODEL_CONEK_Q      "q"
+#define COPTMEX_MODEL_CONEK_R      "r"
+#define COPTMEX_MODEL_CONEK_S      "s"
+
+/* The penalty struct fields */
+#define COPTMEX_PENALTY_LBPEN      "lbpen"
+#define COPTMEX_PENALTY_UBPEN      "ubpen"
+#define COPTMEX_PENALTY_RHSPEN     "rhspen"
+#define COPTMEX_PENALTY_UPPPEN     "upppen"
+
 /* The result struct fields */
 #define COPTMEX_RESULT_STATUS      "status"
 #define COPTMEX_RESULT_SIMITER     "simplexiter"
@@ -105,6 +126,11 @@
 #define COPTMEX_RESULT_POOLOBJ     "objval"
 #define COPTMEX_RESULT_POOLXN      "xn"
 
+#define COPTMEX_RESULT_PSDX        "psdx"
+#define COPTMEX_RESULT_PSDRC       "psdrc"
+#define COPTMEX_RESULT_PSDSLACK    "psdslack"
+#define COPTMEX_RESULT_PSDPI       "psdpi"
+
 /* The advanced information */
 #define COPTMEX_ADVINFO_MIPSTART   "start"
 
@@ -116,6 +142,13 @@
 #define COPTMEX_IIS_CONSTRUB       "construb"
 #define COPTMEX_IIS_SOS            "sos"
 #define COPTMEX_IIS_INDICATOR      "indicator"
+
+/* The feasibility relaxation result fields */
+#define COPTMEX_FEASRELAX_OBJ      "relaxobj"
+#define COPTMEX_FEASRELAX_LB       "relaxlb"
+#define COPTMEX_FEASRELAX_UB       "relaxub"
+#define COPTMEX_FEASRELAX_LHS      "relaxlhs"
+#define COPTMEX_FEASRELAX_RHS      "relaxrhs"
 
 /* The version fields */
 #define COPTMEX_VERSION_MAJOR      "major"
@@ -232,9 +265,63 @@ typedef struct coptmex_mprob_s {
   mxArray *mipstart;
 } coptmex_mprob;
 
+typedef struct coptmex_cconeprob_s {
+  int    nCol;
+  int    nRow;
+  int    nElem;
+
+  int    nObjSense;
+  double dObjConst;
+
+  int    nFree;
+  int    nPositive;
+  int    nCone;
+  int    nRotateCone;
+  int    nPSD;
+
+  int    *coneDim;
+  int    *rotateConeDim;
+  int    *psdDim;
+
+  double *colObj;
+
+  int    nQObjElem;
+  int    *qObjRow;
+  int    *qObjCol;
+  double *qObjElem;
+
+  int    *colMatBeg;
+  int    *colMatIdx;
+  double *colMatElem;
+
+  double *rowRhs;
+} coptmex_cconeprob;
+
+typedef struct coptmex_mconeprob_s {
+  /* Main cone data */
+  mxArray *c;
+  mxArray *A;
+  mxArray *b;
+
+  mxArray *K;
+  mxArray *f;
+  mxArray *l;
+  mxArray *q;
+  mxArray *r;
+  mxArray *s;
+
+  /* Optional parts */
+  mxArray *objsen;
+  mxArray *objcon;
+  mxArray *Q;
+} coptmex_mconeprob;
+
 typedef struct coptmex_clpsol_s {
   int    nRow;
   int    nCol;
+  int    nPSD;
+  int    nPSDLen;
+  int    nPSDConstr;
   int    nQConstr;
   int    hasBasis;
   int    hasLpSol;
@@ -253,6 +340,11 @@ typedef struct coptmex_clpsol_s {
   double *rowDual;
 
   double *qRowSlack;
+
+  double *psdColValue;
+  double *psdColDual;
+  double *psdRowSlack;
+  double *psdRowDual;
 } coptmex_clpsol;
 
 typedef struct coptmex_cmipsol_s {
@@ -283,6 +375,14 @@ typedef struct coptmex_ciisinfo_s {
   int    *indicatorIIS;
 } coptmex_ciisinfo;
 
+typedef struct coptmex_crelaxinfo_s {
+  double dObjVal;
+  double *colLowRlx;
+  double *colUppRlx;
+  double *rowLowRlx;
+  double *rowUppRlx;
+} coptmex_crelaxinfo;
+
 typedef struct coptmex_mlpsol_s {
   mxArray *status;
   mxArray *simplexiter;
@@ -296,6 +396,10 @@ typedef struct coptmex_mlpsol_s {
   mxArray *slack;
   mxArray *dual;
   mxArray *qcslack;
+  mxArray *psdcolvalue;
+  mxArray *psdcoldual;
+  mxArray *psdrowslack;
+  mxArray *psdrowdual;
 } coptmex_mlpsol;
 
 typedef struct coptmex_mmipsol_s {
@@ -320,6 +424,14 @@ typedef struct coptmex_miisinfo_s {
   mxArray *sos;
   mxArray *indicator;
 } coptmex_miisinfo;
+
+typedef struct coptmex_mrelaxinfo_s {
+  mxArray *relaxobj;
+  mxArray *relaxlb;
+  mxArray *relaxub;
+  mxArray *relaxlhs;
+  mxArray *relaxrhs;
+} coptmex_mrelaxinfo;
 
 /* Display error message */
 void COPTMEX_errorMsg(int errcode, const char *errinfo);
@@ -346,7 +458,15 @@ int COPTMEX_writeModel(copt_prob *prob, const mxArray *out_file);
 /* Extract and load data to model */
 int COPTMEX_loadModel(copt_prob *prob, const mxArray *in_model);
 
+/* Check if solve problem via cone data */
+int COPTMEX_isConeModel(const mxArray *in_model);
+/* Solve cone problem with cone data */
+int COPTMEX_solveConeModel(copt_prob *prob, const mxArray *in_model, mxArray **out_result, int ifRetResult);
+
 /* Compute IIS for infeasible problem */
 int COPTMEX_computeIIS(copt_prob *prob, mxArray **out_iis, int ifRetResult);
+
+/* Feasibility relaxation for infeasible problem */
+int COPTMEX_feasRelax(copt_prob *prob, const mxArray *penalty, mxArray **out_relax, int ifRetResult);
 
 #endif

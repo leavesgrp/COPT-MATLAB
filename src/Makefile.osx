@@ -8,7 +8,7 @@ CFLAGS = -O2 -std=c99 -fPIC -Werror -DNDEBUG -DMATLAB_MEX_FILE
 C_INCS = -I. -I$(MATLAB_HOME)/extern/include -I$(COPT_HOME)/include
 C_LIBS = -L$(COPT_HOME)/lib -lcopt -L$(MATLAB_HOME)/bin/maci64 -lmx -lmex -lmat
 
-C_MEXS = copt_read copt_solve copt_write copt_computeiis
+C_MEXS = copt_read copt_solve copt_write copt_computeiis copt_feasrelax
 
 all: $(C_MEXS)
 
@@ -27,6 +27,10 @@ copt_write: copt_write.c coptmex.c coptmex.h coptinit.c
 copt_computeiis: copt_computeiis.c coptmex.c coptmex.h coptinit.c
 	@$(CC) $(CFLAGS) $(C_INCS) -shared -install_name @rpath/copt_computeiis.mexmaci64 -o copt_computeiis.mexmaci64 copt_computeiis.c coptmex.c $(C_LIBS)
 	@cp copt_computeiis.mexmaci64 ../lib
+
+copt_feasrelax: copt_feasrelax.c coptmex.c coptmex.h coptinit.c
+	@$(CC) $(CFLAGS) $(C_INCS) -shared -install_name @rpath/copt_feasrelax.mexmaci64 -o copt_feasrelax.mexmaci64 copt_feasrelax.c coptmex.c $(C_LIBS)
+	@cp copt_feasrelax.mexmaci64 ../lib
 
 clean:
 	@rm -f *.mexmaci64

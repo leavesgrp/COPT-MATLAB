@@ -255,6 +255,28 @@ Fields on Initial solution
 
   If the field is a sparse vector, then only the corresponding part of the variables are specified.
 
+Fields on FeasRelax penalties
+
+- `lbpen`
+
+  Penalties for lower bounds of columns. If empty, then no relaxation for lower bounds of columns are allowed.
+  If penalty in `lbpen` is `inf`, then no relaxation is allowed for corresponding lower bound of column.
+
+- `ubpen`
+
+  Penalties for upper bounds of columns. If empty, then no relaxation for upper bounds of columns are allowed.
+  If penalty in `ubpen` is `inf`, then no relaxation is allowed for corresponding upper bound of column.
+
+- `rhspen`
+
+  Penalties for bounds of rows. If empty, then no relaxation for rows are allowed.
+  If penalty in `rhspen` is `inf`, then no relaxation is allowed for corresponding row.
+
+- `upppen`
+
+  Penalties for upper bounds of rows. For two-sided rows and `rhspen` is not empty, then it is penalty for upper bounds of rows.
+  If penalty in `upppen` is `inf`, then no relaxation is allowed for corresponding upper bound of row.
+
 ### Parameter Information
 
 Parameter info is of type MATLAB `struct` and stores the parameters for optimization. The fields in the struct can be referred from the COPT reference manual.
@@ -372,6 +394,22 @@ Result Info is of type MATLAB `struct` and stores the result and status of solut
 
     Values of columns for solution pool.
 
+- `psdx`
+  
+  Primal solution of PSD variables.
+
+- `psdrc`
+
+  Dual solution of PSD variables.
+
+- `psdslack`
+
+  Slack of PSD constraints.
+
+- `psdpi`
+
+  Dual solution of PSD constraints.
+
 IIS result information, includes:
 
 - `isminiis`
@@ -401,6 +439,28 @@ IIS result information, includes:
 - `indicator`
 
   IIS status for indicator constraints.
+
+Feasibility relaxation result information, includes:
+
+- `relaxobj`
+
+  Objective value of feasibility relaxation.
+
+- `relaxlb`
+
+  Violations of lower bounds of columns.
+
+- `relaxub`
+
+  Violations of upper bounds of columns.
+
+- `relaxlhs`
+
+  Violations of lower bounds of rows.
+
+- `relaxrhs`
+
+  Violations of upper bounds of rows.
 
 ### File I/O
 
@@ -565,6 +625,54 @@ IIS result information, includes:
 
     lpparam.TimeLimit = 10;
     iisinfo = copt_computeiis('testlp.lp', lpparam);
+    ```
+
+- `copt_feasrelax` function
+
+  - **Synopsis**
+
+    `relaxinfo = copt_feasrelax(problem, penalties)`
+
+    `relaxinfo = copt_feasrelax(problem, penalties, paramter)`
+
+  - **Description**
+
+    This function build relaxed problem internally based on input of problem information,
+    penalty information and parameter information and do feasibility relaxation,
+    and return feasibility relaxation result when computation finished.
+
+  - **Arguments**
+
+    `relaxinfo`
+
+      Feasibility relaxation result information struct. Type of MATLAB `struct`.
+
+    `problem`
+
+      Problem information struct. Type of MATLAB `struct`.
+
+    `penalties`
+
+      Penalty information struct. Type of MATLAB `struct`.
+
+    `paramter`
+
+      Parameter information struct. Type of MATLAB `struct`.
+
+  - **Example**
+
+    ```matlab
+    problem = copt_read('inf_lp.mps');
+    penalties.lbpen = ones(length(problem.lb), 1);
+    penalties.ubpen = ones(length(problem.ub), 1);
+    relaxinfo = copt_feasrelax(problem, penalties);
+
+    problem = copt_read('inf_lp.mps')
+    penalties.lbpen = ones(length(problem.lb), 1);
+    penalties.ubpen = ones(length(problem.ub), 1);
+    penalties.rhspen = ones(length(problem.rhs), 1);
+    parameter.feasrelaxmode = 1;
+    relaxinfo = copt_feasrelax(problem, penalties, parameter);
     ```
 
 ### Other functions

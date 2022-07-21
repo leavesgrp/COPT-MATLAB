@@ -2,6 +2,52 @@
 
 extern int COPT_SearchParamAttr(copt_prob *prob, const char *name, int *p_type);
 
+extern int COPT_GetPSDSolution(copt_prob* prob,
+                               double* psdColValue,
+                               double* psdRowSlack,
+                               double* psdRowDual,
+                               double* psdColDual);
+
+extern int COPT_LoadConeProb(copt_prob* prob,
+  int nCol,
+  int nRow,
+  int nFree,
+  int nPositive,
+  int nBox,
+  int nCone,
+  int nRotateCone,
+  int nPrimalExp,
+  int nDualExp,
+  int nPrimalPow,
+  int nDualPow,
+  int nPSD,
+  int nQObjElem,
+  int iObjSense,
+  double dObjConst,
+  const double* colObj,
+  const int* qObjRow,
+  const int* qObjCol,
+  const double* qObjElem,
+  const int* colMatBeg,
+  const int* colMatCnt,
+  const int* colMatIdx,
+  const double* colMatElem,
+  const double* rowRhs,
+  const double* boxLower,
+  const double* boxUpper,
+  const int* coneDim,
+  const int* rotateConeDim,
+  const int* primalPowDim,
+  const int* dualPowDim,
+  const double* primalPowAlpha,
+  const double* dualPowAlpha,
+  const int* psdDim,
+  const char* colType,
+  char const* const* colNames,
+  char const* const* rowNames,
+  char const* const* psdColNames,
+  int* outRowMap);
+
 /* Convert status code from integer to string */
 static const char *COPTMEX_statusInt2Str(int status) {
   switch (status) {
@@ -251,6 +297,9 @@ static int COPTMEX_getLpResult(copt_prob *prob, mxArray **out_lpresult) {
 
   COPTMEX_CALL(COPT_GetIntAttr(prob, COPT_INTATTR_ROWS, &csol.nRow));
   COPTMEX_CALL(COPT_GetIntAttr(prob, COPT_INTATTR_COLS, &csol.nCol));
+  COPTMEX_CALL(COPT_GetIntAttr(prob, COPT_INTATTR_PSDCOLS, &csol.nPSD));
+  COPTMEX_CALL(COPT_GetIntAttr(prob, "PSDLens", &csol.nPSDLen));
+  COPTMEX_CALL(COPT_GetIntAttr(prob, COPT_INTATTR_PSDCONSTRS, &csol.nPSDConstr));
   COPTMEX_CALL(COPT_GetIntAttr(prob, COPT_INTATTR_QCONSTRS, &csol.nQConstr));
   COPTMEX_CALL(COPT_GetIntAttr(prob, COPT_INTATTR_LPSTATUS, &csol.nStatus));
   COPTMEX_CALL(COPT_GetIntAttr(prob, COPT_INTATTR_HASBASIS, &csol.hasBasis));
@@ -290,6 +339,30 @@ static int COPTMEX_getLpResult(copt_prob *prob, mxArray **out_lpresult) {
 
       csol.qRowSlack = mxGetDoubles(msol.qcslack);
     }
+
+    if (csol.nPSD > 0) {
+      msol.psdcolvalue = mxCreateDoubleMatrix(csol.nPSDLen, 1, mxREAL);
+      msol.psdcoldual = mxCreateDoubleMatrix(csol.nPSDLen, 1, mxREAL);
+      if (!msol.psdcolvalue || !msol.psdcoldual) {
+        retcode = COPT_RETCODE_MEMORY;
+        goto exit_cleanup;
+      }
+
+      csol.psdColValue = mxGetDoubles(msol.psdcolvalue);
+      csol.psdColDual = mxGetDoubles(msol.psdcoldual);
+    }
+
+    if (csol.nPSDConstr > 0) {
+      msol.psdrowslack = mxCreateDoubleMatrix(csol.nPSDConstr, 1, mxREAL);
+      msol.psdrowdual = mxCreateDoubleMatrix(csol.nPSDConstr, 1, mxREAL);
+      if (!msol.psdrowslack || !msol.psdrowdual) {
+        retcode = COPT_RETCODE_MEMORY;
+        goto exit_cleanup;
+      }
+
+      csol.psdRowSlack = mxGetDoubles(msol.psdrowslack);
+      csol.psdRowDual = mxGetDoubles(msol.psdrowdual);
+    }
   }
 
   if (csol.hasBasis) {
@@ -319,6 +392,14 @@ static int COPTMEX_getLpResult(copt_prob *prob, mxArray **out_lpresult) {
 
     if (csol.nQConstr > 0) {
       COPTMEX_CALL(COPT_GetQConstrInfo(prob, COPT_DBLINFO_SLACK, csol.nQConstr, NULL, csol.qRowSlack));
+    }
+
+    if (csol.nPSD > 0) {
+      COPTMEX_CALL(COPT_GetPSDSolution(prob, csol.psdColValue, NULL, NULL, csol.psdColDual));
+    }
+
+    if (csol.nPSDConstr > 0) {
+      COPTMEX_CALL(COPT_GetPSDSolution(prob, NULL, csol.psdRowSlack, csol.psdRowDual, NULL));
     }
   }
 
@@ -388,6 +469,26 @@ static int COPTMEX_getLpResult(copt_prob *prob, mxArray **out_lpresult) {
     if (csol.nQConstr > 0) {
       mxAddField(lpResult, COPTMEX_RESULT_QCSLACK);
       mxSetField(lpResult, 0, COPTMEX_RESULT_QCSLACK, msol.qcslack);
+    }
+
+    if (csol.nPSD > 0) {
+      // 'psdx'
+      mxAddField(lpResult, COPTMEX_RESULT_PSDX);
+      mxSetField(lpResult, 0, COPTMEX_RESULT_PSDX, msol.psdcolvalue);
+
+      // 'psdrc'
+      mxAddField(lpResult, COPTMEX_RESULT_PSDRC);
+      mxSetField(lpResult, 0, COPTMEX_RESULT_PSDRC, msol.psdcoldual);
+    }
+
+    if (csol.nPSDConstr > 0) {
+      // 'psdslack'
+      mxAddField(lpResult, COPTMEX_RESULT_PSDSLACK);
+      mxSetField(lpResult, 0, COPTMEX_RESULT_PSDSLACK, msol.psdrowslack);
+
+      // 'psdpi'
+      mxAddField(lpResult, COPTMEX_RESULT_PSDPI);
+      mxSetField(lpResult, 0, COPTMEX_RESULT_PSDPI, msol.psdrowdual);
     }
   }
 
@@ -1272,6 +1373,10 @@ int COPTMEX_readModel(copt_prob *prob, const mxArray *in_model) {
     COPTMEX_CALL(COPT_ReadLp(prob, filename));
   } else if (strcmp(fileext, "bin") == 0) {
     COPTMEX_CALL(COPT_ReadBin(prob, filename));
+  } else if (strcmp(fileext, "dat-s") == 0) {
+    COPTMEX_CALL(COPT_ReadSDPA(prob, filename));
+  } else if (strcmp(fileext, "cbf") == 0) {
+    COPTMEX_CALL(COPT_ReadCbf(prob, filename));
   } else {
     retcode = COPT_RETCODE_INVALID;
   }
@@ -1288,7 +1393,7 @@ int COPTMEX_writeModel(copt_prob *prob, const mxArray *out_file) {
   char *fileext = NULL;
 
   COPTMEX_CALL(COPTMEX_getString(out_file, &filename));
-  
+
   fileext = COPTMEX_getFileExt(filename);
   if (strcmp(fileext, "mps") == 0) {
     COPTMEX_CALL(COPT_WriteMps(prob, filename));
@@ -1296,12 +1401,237 @@ int COPTMEX_writeModel(copt_prob *prob, const mxArray *out_file) {
     COPTMEX_CALL(COPT_WriteLp(prob, filename));
   } else if (strcmp(fileext, "bin") == 0) {
     COPTMEX_CALL(COPT_WriteBin(prob, filename));
+  } else if (strcmp(fileext, "cbf") == 0) {
+    COPTMEX_CALL(COPT_WriteCbf(prob, filename));
   } else {
     retcode = COPT_RETCODE_INVALID;
   }
 
 exit_cleanup:
   COPTMEX_freeString(&filename);
+  return retcode;
+}
+
+/* Check if solve problem via cone data */
+int COPTMEX_isConeModel(const mxArray *in_model) {
+  int ifConeData = 0;
+  mxArray *conedata = NULL;
+  
+  conedata = mxGetField(in_model, 0, COPTMEX_MODEL_CONEDATA);
+  if (conedata != NULL) {
+    if (COPTMEX_checkConeModel(conedata)) {
+      ifConeData = 1;
+    }
+  }
+
+  return ifConeData;
+}
+
+/* Solve cone problem with cone data */
+int COPTMEX_solveConeModel(copt_prob *prob, const mxArray *in_model, mxArray **out_result, int ifRetResult) {
+  int retcode = 0;
+  coptmex_cconeprob cconeprob;
+  coptmex_mconeprob mconeprob;
+  mxArray *conedata = NULL;
+  int *outRowMap = NULL;
+
+  COPTMEX_initCConeProb(&cconeprob);
+  COPTMEX_initMConeProb(&mconeprob);
+
+  conedata = mxGetField(in_model, 0, COPTMEX_MODEL_CONEDATA);
+
+  mconeprob.c = mxGetField(conedata, 0, COPTMEX_MODEL_CONE_C);
+  mconeprob.A = mxGetField(conedata, 0, COPTMEX_MODEL_CONE_A);
+  mconeprob.b = mxGetField(conedata, 0, COPTMEX_MODEL_CONE_B);
+
+  mconeprob.K = mxGetField(conedata, 0, COPTMEX_MODEL_CONE_K);
+  mconeprob.f = mxGetField(mconeprob.K, 0, COPTMEX_MODEL_CONEK_F);
+  mconeprob.l = mxGetField(mconeprob.K, 0, COPTMEX_MODEL_CONEK_L);
+  mconeprob.q = mxGetField(mconeprob.K, 0, COPTMEX_MODEL_CONEK_Q);
+  mconeprob.r = mxGetField(mconeprob.K, 0, COPTMEX_MODEL_CONEK_R);
+  mconeprob.s = mxGetField(mconeprob.K, 0, COPTMEX_MODEL_CONEK_S);
+
+  mconeprob.objsen = mxGetField(conedata, 0, COPTMEX_MODEL_CONE_OBJSEN);
+  mconeprob.objcon = mxGetField(conedata, 0, COPTMEX_MODEL_CONE_OBJCON);
+  mconeprob.Q      = mxGetField(conedata, 0, COPTMEX_MODEL_CONE_Q);
+
+  // 'objsen'
+  if (mconeprob.objsen != NULL) {
+    COPTMEX_CALL(COPTMEX_getObjsen(mconeprob.objsen, &cconeprob.nObjSense));
+  }
+  // 'objcon'
+  if (mconeprob.objcon != NULL) {
+    cconeprob.dObjConst = mxGetScalar(mconeprob.objcon);
+  }
+  // 'Q'
+  if (mconeprob.Q != NULL) {
+    cconeprob.nQObjElem = mxGetNzmax(mconeprob.Q);
+
+    cconeprob.qObjRow = (int *) mxCalloc(cconeprob.nQObjElem, sizeof(int));
+    cconeprob.qObjCol = (int *) mxCalloc(cconeprob.nQObjElem, sizeof(int));
+    cconeprob.qObjElem = (double *) mxCalloc(cconeprob.nQObjElem, sizeof(double));
+    if (!cconeprob.qObjRow || !cconeprob.qObjCol || !cconeprob.qObjElem) {
+      retcode = COPT_RETCODE_MEMORY;
+      goto exit_cleanup;
+    }
+
+    COPTMEX_csc2coo(mconeprob.Q, cconeprob.qObjRow, cconeprob.qObjCol, cconeprob.qObjElem);
+  }
+
+  // 'c'
+  if (mconeprob.c != NULL) {
+    cconeprob.colObj = mxGetDoubles(mconeprob.c);
+  }
+  // 'A'
+  if (mconeprob.A != NULL) {
+    cconeprob.nRow       = mxGetM(mconeprob.A);
+    cconeprob.nCol       = mxGetN(mconeprob.A);
+    cconeprob.nElem      = mxGetNzmax(mconeprob.A);
+    cconeprob.colMatBeg  = (int *) mxCalloc(cconeprob.nCol + 1, sizeof(int));
+    cconeprob.colMatIdx  = (int *) mxCalloc(cconeprob.nElem, sizeof(int));
+    if (!cconeprob.colMatBeg || !cconeprob.colMatIdx) {
+      retcode = COPT_RETCODE_MEMORY;
+      goto exit_cleanup;
+    }
+
+    mwIndex *colMatBeg_data = mxGetJc(mconeprob.A);
+    mwIndex *colMatIdx_data = mxGetIr(mconeprob.A);
+    for (int i = 0; i < cconeprob.nCol + 1; ++i) {
+      cconeprob.colMatBeg[i] = (int) colMatBeg_data[i];
+    }
+    for (int i = 0; i < cconeprob.nElem; ++i) {
+      cconeprob.colMatIdx[i] = (int) colMatIdx_data[i];
+    }
+
+    cconeprob.colMatElem = mxGetDoubles(mconeprob.A);
+  }
+  // 'b'
+  if (mconeprob.b != NULL) {
+    cconeprob.rowRhs = mxGetDoubles(mconeprob.b);
+  }
+
+  // 'K'
+  if (mconeprob.K != NULL) {
+    // 'f'
+    if (mconeprob.f != NULL) {
+      cconeprob.nFree = (int) mxGetScalar(mconeprob.f);
+    }
+    // 'l'
+    if (mconeprob.l != NULL) {
+      cconeprob.nPositive = (int) mxGetScalar(mconeprob.l);
+    }
+    // 'q'
+    if (mconeprob.q != NULL) {
+      int nCone = mxGetNumberOfElements(mconeprob.q);
+      double *coneDim_data = mxGetDoubles(mconeprob.q);
+
+      if (nCone > 1 || (nCone == 1 && coneDim_data[0] > 0)) {
+        cconeprob.nCone = nCone;
+        cconeprob.coneDim = (int *) mxCalloc(cconeprob.nCone, sizeof(int));
+
+        for (int i = 0; i < cconeprob.nCone; ++i) {
+          cconeprob.coneDim[i] = (int) coneDim_data[i];
+        }
+      }
+    }
+    // 'r'
+    if (mconeprob.r != NULL) {
+      int nRotateCone = mxGetNumberOfElements(mconeprob.r);
+      double *rotateConeDim_data = mxGetDoubles(mconeprob.r);
+
+      if (nRotateCone > 1 || (nRotateCone == 1 && rotateConeDim_data[0] > 0)) {
+        cconeprob.nRotateCone = nRotateCone;
+        cconeprob.rotateConeDim = (int *) mxCalloc(cconeprob.nRotateCone, sizeof(int));
+
+        for (int i = 0; i < cconeprob.nRotateCone; ++i) {
+          cconeprob.rotateConeDim[i] = (int) rotateConeDim_data[i];
+        }
+      }
+    }
+    // 's'
+    if (mconeprob.s != NULL) {
+      int nPSD = mxGetNumberOfElements(mconeprob.s);
+      double *psdDim_data = mxGetDoubles(mconeprob.s);
+
+      if (nPSD > 1 || (nPSD == 1 && psdDim_data[0] > 0)) {
+        cconeprob.nPSD = nPSD;
+        cconeprob.psdDim = (int *) mxCalloc(cconeprob.nPSD, sizeof(int));
+
+        for (int i = 0; i < cconeprob.nPSD; ++i) {
+          cconeprob.psdDim[i] = (int) psdDim_data[i];
+        }
+      }
+    }
+  }
+
+  outRowMap = (int *) mxCalloc(cconeprob.nRow, sizeof(int));
+  if (!outRowMap) {
+    retcode = COPT_RETCODE_MEMORY;
+    goto exit_cleanup;
+  }
+
+  // Load cone problem data
+  COPTMEX_CALL(COPT_LoadConeProb(prob, cconeprob.nCol, cconeprob.nRow,
+    cconeprob.nFree, cconeprob.nPositive, 0, cconeprob.nCone, cconeprob.nRotateCone,
+    0, 0, 0, 0, cconeprob.nPSD, cconeprob.nQObjElem, cconeprob.nObjSense, cconeprob.dObjConst,
+    cconeprob.colObj, cconeprob.qObjRow, cconeprob.qObjCol, cconeprob.qObjElem,
+    cconeprob.colMatBeg, NULL, cconeprob.colMatIdx, cconeprob.colMatElem, cconeprob.rowRhs,
+    NULL, NULL, cconeprob.coneDim, cconeprob.rotateConeDim, NULL, NULL, NULL, NULL,
+    cconeprob.psdDim, NULL, NULL, NULL, NULL, outRowMap));
+
+  COPTMEX_CALL(COPT_Solve(prob));
+
+  if (ifRetResult == 1) {
+    COPTMEX_CALL(COPTMEX_getResult(prob, out_result));
+
+    if (*out_result != NULL) {
+      mxArray *rowMap = mxCreateDoubleMatrix(cconeprob.nRow, 1, mxREAL);
+      if (rowMap == NULL) {
+        retcode = COPT_RETCODE_MEMORY;
+        goto exit_cleanup;
+      }
+
+      double *rowMap_data = mxGetDoubles(rowMap);
+      for (int i = 0; i < cconeprob.nRow; ++i) {
+        rowMap_data[i] = outRowMap[i];
+      }
+
+      mxAddField(*out_result, "rowmap");
+      mxSetField(*out_result, 0, "rowmap", rowMap);
+    }
+  }
+
+exit_cleanup:
+  if (outRowMap != NULL) {
+    mxFree(outRowMap);
+  }
+
+  if (cconeprob.qObjRow != NULL) {
+    mxFree(cconeprob.qObjRow);
+  }
+  if (cconeprob.qObjCol != NULL) {
+    mxFree(cconeprob.qObjCol);
+  }
+  if (cconeprob.qObjElem != NULL) {
+    mxFree(cconeprob.qObjElem);
+  }
+
+  if (cconeprob.coneDim != NULL) {
+    mxFree(cconeprob.coneDim);
+  }
+  if (cconeprob.rotateConeDim != NULL) {
+    mxFree(cconeprob.rotateConeDim);
+  }
+  if (cconeprob.psdDim != NULL) {
+    mxFree(cconeprob.psdDim);
+  }
+
+  if (cconeprob.colMatBeg != NULL) {
+    mxFree(cconeprob.colMatBeg);
+  }
+  if (cconeprob.colMatIdx != NULL) {
+    mxFree(cconeprob.colMatIdx);
+  }
   return retcode;
 }
 
@@ -1367,7 +1697,7 @@ int COPTMEX_loadModel(copt_prob *prob, const mxArray *in_model) {
       retcode = COPT_RETCODE_MEMORY;
       goto exit_cleanup;
     }
-    
+
     mwIndex *colMatBeg_data = mxGetJc(mprob.A);
     mwIndex *colMatIdx_data = mxGetIr(mprob.A);
     for (int i = 0; i < cprob.nCol + 1; ++i) {
@@ -1803,7 +2133,7 @@ int COPTMEX_loadModel(copt_prob *prob, const mxArray *in_model) {
 
       for (int i = 0; i < nRowCnt; ++i) {
         if (mxIsNaN(rowElem_data[i])) {
-          rowElem[i] = 2 * COPT_INFINITY;
+          rowElem[i] = COPT_UNDEFINED;
         } else {
           rowElem[i] = rowElem_data[i];
         }
@@ -2042,6 +2372,162 @@ int COPTMEX_computeIIS(copt_prob *prob, mxArray **out_iis, int ifRetResult) {
   // Extract IIS information
   if (ifRetResult == 1) {
     COPTMEX_CALL(COPTMEX_getIIS(prob, out_iis));
+  }
+
+exit_cleanup:
+  return retcode;
+}
+
+/* Extract feasibility relaxation information */
+static int COPTMEX_getFeasRelax(copt_prob *prob, mxArray **out_relax) {
+  int retcode = COPT_RETCODE_OK;
+  int nRow = 0, nCol = 0;
+  int hasFeasRelax = 0;
+  mxArray *relaxInfo = NULL;
+  coptmex_crelaxinfo crelaxinfo;
+  coptmex_mrelaxinfo mrelaxinfo;
+
+  COPTMEX_CALL(COPT_GetIntAttr(prob, COPT_INTATTR_HASFEASRELAXSOL, &hasFeasRelax));
+  if (hasFeasRelax == 0) {
+    *out_relax = NULL;
+    goto exit_cleanup;
+  }
+
+  COPTMEX_initCRelaxInfo(&crelaxinfo);
+  COPTMEX_initMRelaxInfo(&mrelaxinfo);
+
+  COPTMEX_CALL(COPT_GetIntAttr(prob, COPT_INTATTR_ROWS, &nRow));
+  COPTMEX_CALL(COPT_GetIntAttr(prob, COPT_INTATTR_COLS, &nCol));
+
+  mrelaxinfo.relaxobj = mxCreateDoubleMatrix(1, 1, mxREAL);
+  if (!mrelaxinfo.relaxobj) {
+    retcode = COPT_RETCODE_MEMORY;
+    goto exit_cleanup;
+  }
+
+  if (nCol > 0) {
+    mrelaxinfo.relaxlb = mxCreateDoubleMatrix(nCol, 1, mxREAL);
+    mrelaxinfo.relaxub = mxCreateDoubleMatrix(nCol, 1, mxREAL);
+    if (!mrelaxinfo.relaxlb || !mrelaxinfo.relaxub) {
+      retcode = COPT_RETCODE_MEMORY;
+      goto exit_cleanup;
+    }
+  }
+
+  if (nRow > 0) {
+    mrelaxinfo.relaxlhs = mxCreateDoubleMatrix(nRow, 1, mxREAL);
+    mrelaxinfo.relaxrhs = mxCreateDoubleMatrix(nRow, 1, mxREAL);
+    if (!mrelaxinfo.relaxlhs || !mrelaxinfo.relaxrhs) {
+      retcode = COPT_RETCODE_MEMORY;
+      goto exit_cleanup;
+    }
+  }
+
+  if (nCol > 0) {
+    crelaxinfo.colLowRlx = mxGetDoubles(mrelaxinfo.relaxlb);
+    crelaxinfo.colUppRlx = mxGetDoubles(mrelaxinfo.relaxub);
+  }
+
+  if (nRow > 0) {
+    crelaxinfo.rowLowRlx = mxGetDoubles(mrelaxinfo.relaxlhs);
+    crelaxinfo.rowUppRlx = mxGetDoubles(mrelaxinfo.relaxrhs);
+  }
+
+  COPTMEX_CALL(COPT_GetDblAttr(prob, COPT_DBLATTR_FEASRELAXOBJ, &crelaxinfo.dObjVal));
+  *mxGetDoubles(mrelaxinfo.relaxobj) = crelaxinfo.dObjVal;
+
+  if (nCol > 0) {
+    COPTMEX_CALL(COPT_GetColInfo(prob, COPT_DBLINFO_RELAXLB, nCol, NULL, crelaxinfo.colLowRlx));
+    COPTMEX_CALL(COPT_GetColInfo(prob, COPT_DBLINFO_RELAXUB, nCol, NULL, crelaxinfo.colUppRlx));
+  }
+
+  if (nRow > 0) {
+    COPTMEX_CALL(COPT_GetRowInfo(prob, COPT_DBLINFO_RELAXLB, nRow, NULL, crelaxinfo.rowLowRlx));
+    COPTMEX_CALL(COPT_GetRowInfo(prob, COPT_DBLINFO_RELAXUB, nRow, NULL, crelaxinfo.rowUppRlx));
+  }
+
+  relaxInfo = mxCreateStructMatrix(1, 1, 0, NULL);
+  if (!relaxInfo) {
+    retcode = COPT_RETCODE_MEMORY;
+    goto exit_cleanup;
+  }
+
+  // 'relaxobj'
+  mxAddField(relaxInfo, COPTMEX_FEASRELAX_OBJ);
+  mxSetField(relaxInfo, 0, COPTMEX_FEASRELAX_OBJ, mrelaxinfo.relaxobj);
+
+  if (nCol > 0) {
+    // 'relaxlb'
+    mxAddField(relaxInfo, COPTMEX_FEASRELAX_LB);
+    mxSetField(relaxInfo, 0, COPTMEX_FEASRELAX_LB, mrelaxinfo.relaxlb);
+    // 'relaxub'
+    mxAddField(relaxInfo, COPTMEX_FEASRELAX_UB);
+    mxSetField(relaxInfo, 0, COPTMEX_FEASRELAX_UB, mrelaxinfo.relaxub);
+  }
+
+  if (nRow > 0) {
+    // 'relaxlhs'
+    mxAddField(relaxInfo, COPTMEX_FEASRELAX_LHS);
+    mxSetField(relaxInfo, 0, COPTMEX_FEASRELAX_LHS, mrelaxinfo.relaxlhs);
+    // 'relaxrhs'
+    mxAddField(relaxInfo, COPTMEX_FEASRELAX_RHS);
+    mxSetField(relaxInfo, 0, COPTMEX_FEASRELAX_RHS, mrelaxinfo.relaxrhs);
+  }
+
+  // Write out feasibility relaxation problem
+  COPTMEX_CALL(COPT_WriteRelax(prob, "result.relax"));
+
+  *out_relax = relaxInfo;
+
+exit_cleanup:
+  if (retcode != COPT_RETCODE_OK) {
+    *out_relax = NULL;
+  }
+
+  return retcode;
+}
+
+int COPTMEX_feasRelax(copt_prob *prob, const mxArray *penalty, mxArray **out_relax, int ifRetResult) {
+  int retcode = COPT_RETCODE_OK;
+
+  mxArray *lbpen = NULL;
+  mxArray *ubpen = NULL;
+  mxArray *rhspen = NULL;
+  mxArray *upppen = NULL;
+
+  double *colLowPen = NULL;
+  double *colUppPen = NULL;
+  double *rowBndPen = NULL;
+  double *rowUppPen = NULL;
+
+  if (COPTMEX_checkPenalty(prob, penalty) == 0) {
+    goto exit_cleanup;
+  }
+
+  lbpen = mxGetField(penalty, 0, COPTMEX_PENALTY_LBPEN);
+  ubpen = mxGetField(penalty, 0, COPTMEX_PENALTY_UBPEN);
+  rhspen = mxGetField(penalty, 0, COPTMEX_PENALTY_RHSPEN);
+  upppen = mxGetField(penalty, 0, COPTMEX_PENALTY_UPPPEN);
+
+  if (lbpen != NULL) {
+    colLowPen = mxGetDoubles(lbpen);
+  }
+  if (ubpen != NULL) {
+    colUppPen = mxGetDoubles(ubpen);
+  }
+  if (rhspen != NULL) {
+    rowBndPen = mxGetDoubles(rhspen);
+  }
+  if (upppen != NULL) {
+    rowUppPen = mxGetDoubles(upppen);
+  }
+
+  // Compute the feasibility relaxation
+  COPTMEX_CALL(COPT_FeasRelax(prob, colLowPen, colUppPen, rowBndPen, rowUppPen));
+
+  // Extract feasibility relaxation information
+  if (ifRetResult == 1) {
+    COPTMEX_CALL(COPTMEX_getFeasRelax(prob, out_relax));
   }
 
 exit_cleanup:

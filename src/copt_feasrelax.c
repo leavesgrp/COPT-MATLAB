@@ -1,16 +1,16 @@
 #include "coptmex.h"
 
-void COPT_CALL COPTMEX_printLog(char *msg, void *userdata) {
+void COPT_CALL COPTMEX_printLog(char* msg, void* userdata) {
   if (msg != NULL) {
     mexPrintf("%s\n", msg);
     mexEvalString("drawnow;");
   }
 }
 
-void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
+void mexFunction(int nlhs, mxArray* plhs[], int nrhs, const mxArray* prhs[]) {
   int retcode = COPT_RETCODE_OK;
-  copt_env *env = NULL;
-  copt_prob *prob = NULL;
+  copt_env* env = NULL;
+  copt_prob* prob = NULL;
   int retResult = 1;
 
   // Check if inputs/outputs are valid
@@ -22,18 +22,23 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     retResult = 0;
   }
 
-  if (nrhs == 1 || nrhs == 2) {
-    if (!mxIsChar(prhs[0]) && !mxIsStruct(prhs[0])) {
-      COPTMEX_errorMsg(COPTMEX_ERROR_BAD_TYPE, "problem/probfile");
+  if (nrhs == 2 || nrhs == 3) {
+    if (!mxIsStruct(prhs[0])) {
+      COPTMEX_errorMsg(COPTMEX_ERROR_BAD_TYPE, "problem");
       goto exit_cleanup;
     }
-    if (nrhs == 2) {
-      if (!mxIsStruct(prhs[1])) {
+    if (!mxIsStruct(prhs[1])) {
+      COPTMEX_errorMsg(COPTMEX_ERROR_BAD_TYPE, "penalties");
+      goto exit_cleanup;
+    }
+    if (nrhs == 3) {
+      if (!mxIsStruct(prhs[2])) {
         COPTMEX_errorMsg(COPTMEX_ERROR_BAD_TYPE, "parameter");
         goto exit_cleanup;
       }
     }
-  } else {
+  }
+  else {
     COPTMEX_errorMsg(COPTMEX_ERROR_BAD_NUM, "inputs");
     goto exit_cleanup;
   }
@@ -45,27 +50,20 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
   // Set message callback
   COPTMEX_CALL(COPT_SetLogCallback(prob, COPTMEX_printLog, NULL));
 
-  // Processing the second argument, if exists.
-  if (nrhs == 2) {
+  // Processing the third argument, if exists.
+  if (nrhs == 3) {
     // Load and set parameters to problem
-    COPTMEX_CALL(COPTMEX_setParam(prob, prhs[1]));
-  } else {
+    COPTMEX_CALL(COPTMEX_setParam(prob, prhs[2]));
+  }
+  else {
     COPTMEX_CALL(COPTMEX_dispBanner());
   }
 
-  // Processing the first argument
-  //  1. 'string': a valid problem file;
-  //  2. 'struct': a struct that specify the problem data.
-  if (mxIsChar(prhs[0])) {
-    // Read the problem from file
-    COPTMEX_CALL(COPTMEX_readModel(prob, prhs[0]));
-  } else if (mxIsStruct(prhs[0])) {
-    // Extract and load data to problem
-    COPTMEX_CALL(COPTMEX_loadModel(prob, prhs[0]));
-  }
+  // Extract and load data to problem
+  COPTMEX_CALL(COPTMEX_loadModel(prob, prhs[0]));
 
-  // Compute IIS for infeasible problem and save result
-  COPTMEX_CALL(COPTMEX_computeIIS(prob, &plhs[0], retResult));
+  // Compute feasibility relaxation and save result
+  COPTMEX_CALL(COPTMEX_feasRelax(prob, prhs[1], &plhs[0], retResult));
 
 exit_cleanup:
   if (retcode != COPT_RETCODE_OK) {

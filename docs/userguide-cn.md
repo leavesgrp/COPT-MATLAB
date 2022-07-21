@@ -249,6 +249,25 @@ Indicator约束相关的域：
 
   若该域是致密向量，则应对每个变量指定初始解信息，若某些变量取值不确定，则指定其值为 `nan` ；若该域是稀疏向量，则指定部分变量的初始解即可。
 
+惩罚信息相关的域：
+
+- `lbpen`
+
+  变量下界的惩罚因子。若为空，则表示不松弛变量下界；若 `lbpen` 中惩罚因子为 `inf`，则表示不松弛相应变量的下界。
+
+- `ubpen`
+
+  变量上界的惩罚因子。若为空，则表示不松弛变量上界；若 `ubpen` 中惩罚因子为 `inf`，则表示不松弛相应变量的上界。
+
+- `rhspen`
+
+  约束边界的惩罚因子。若为空，则表示不松弛约束边界；若 `rhspen` 中惩罚因子为 `inf`，则表示不松弛相应约束的边界。
+
+- `upppen`
+
+  约束上边界的惩罚因子。若模型中存在双边约束，且 `rhspen` 不为空，则表示约束上边界的惩罚因子；若 `upppen` 中惩罚因子
+  为 `inf` ，则表示不松弛相应约束的上边界。
+
 ### 参数信息
 
 参数信息是MATLAB的 `struct` 类型的变量，用于存储优化求解的参数设置。该变量中的域名与其含义
@@ -366,6 +385,22 @@ Indicator约束相关的域：
 
     解池中解的变量取值。
 
+- `psdx`
+
+  半定规划中半定变量的取值。
+
+- `psdrc`
+
+  半定规划中半定变量的对偶取值。
+
+- `psdslack`
+
+  半定规划中半定约束的取值。
+
+- `psdpi`
+
+  半定规划中半定约束的对偶取值。
+
 IIS结果相关信息，包括以下域：
 
 - `isminiis`
@@ -395,6 +430,28 @@ IIS结果相关信息，包括以下域：
 - `indicator`
 
   Indicator约束的IIS状态。
+
+可行化松弛结果相关信息，包括以下域：
+
+- `relaxobj`
+
+  可行化松弛目标函数取值。
+
+- `relaxlb`
+
+  变量下边界的冲突值。
+
+- `relaxub`
+
+  变量上边界的冲突值。
+
+- `relaxlhs`
+
+  约束下边界的冲突值。
+
+- `relaxrhs`
+
+  约束上边界的冲突值。
 
 ### 文件读写
 
@@ -558,6 +615,53 @@ IIS结果相关信息，包括以下域：
 
     lpparam.TimeLimit = 10;
     iisinfo = copt_computeiis('testlp.lp', lpparam);
+    ```
+
+- `copt_feasrelax` 函数
+
+  - **概要**
+
+    `relaxinfo = copt_feasrelax(problem, penalties)`
+
+    `relaxinfo = copt_feasrelax(problem, penalties, paramter)`
+
+  - **描述**
+
+    根据输入的模型信息对象、惩罚因子信息对象和参数信息对象，在内部构建模型并计算可行化松弛，
+    计算完成后返回可行化松弛结果信息对象。
+
+  - **参量**
+
+    `relaxinfo`
+
+      可行化松弛结果信息对象。该变量类型为MATLAB的 `struct` 类型。
+
+    `problem`
+
+      模型信息对象。该变量类型为MATLAB的 `struct` 类型。
+
+    `penalties`
+
+      惩罚因子信息对象。该变量类型为MATLAB的 `struct` 类型。
+
+    `paramter`
+
+      参数信息对象。该变量类型为MATLAB的 `struct` 类型。
+
+  - **示例**
+
+    ```matlab
+    problem = copt_read('inf_lp.mps');
+    penalties.lbpen = ones(length(problem.lb), 1);
+    penalties.ubpen = ones(length(problem.ub), 1);
+    relaxinfo = copt_feasrelax(problem, penalties);
+
+    problem = copt_read('inf_lp.mps')
+    penalties.lbpen = ones(length(problem.lb), 1);
+    penalties.ubpen = ones(length(problem.ub), 1);
+    penalties.rhspen = ones(length(problem.rhs), 1);
+    parameter.feasrelaxmode = 1;
+    relaxinfo = copt_feasrelax(problem, penalties, parameter);
     ```
 
 ### 其它函数

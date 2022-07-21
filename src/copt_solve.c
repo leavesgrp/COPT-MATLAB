@@ -12,6 +12,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
   copt_env *env = NULL;
   copt_prob *prob = NULL;
   int retResult = 1;
+  int ifConeData = 0;
 
   // Check if inputs/outputs are valid
   if (nlhs != 1 && nlhs != 0) {
@@ -64,7 +65,13 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     COPTMEX_CALL(COPTMEX_readModel(prob, prhs[0]));
   } else if (mxIsStruct(prhs[0])) {
     // Extract and load data to problem
-    COPTMEX_CALL(COPTMEX_loadModel(prob, prhs[0]));
+    ifConeData = COPTMEX_isConeModel(prhs[0]);
+    if (ifConeData) {
+      COPTMEX_CALL(COPTMEX_solveConeModel(prob, prhs[0], &plhs[0], retResult));
+      goto exit_cleanup;
+    } else {
+      COPTMEX_CALL(COPTMEX_loadModel(prob, prhs[0]));
+    }
   }
 
   // Solve the problem
