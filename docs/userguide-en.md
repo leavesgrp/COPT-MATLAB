@@ -377,6 +377,14 @@ Result Info is of type MATLAB `struct` and stores the result and status of solut
 
   Dual variables for LP.
 
+- `primalray`
+
+  Primal ray for unbounded LP. Only available if `ReqFarkasRay` parameter set to 1.
+
+- `dualfarkas`
+
+  Dual farkas for infeasible LP. Only available if `ReqFarkasRay` parameter set to 1.
+
 - `qcslack`
 
   Activities for quadratic constraints.

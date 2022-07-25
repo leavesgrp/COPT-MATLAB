@@ -183,6 +183,8 @@ static void COPTMEX_initCLpSol(coptmex_clpsol *clpsol) {
   clpsol->colDual      = NULL;
   clpsol->rowSlack     = NULL;
   clpsol->rowDual      = NULL;
+  clpsol->primalRay    = NULL;
+  clpsol->dualFarkas   = NULL;
 
   clpsol->qRowSlack    = NULL;
 
@@ -248,6 +250,8 @@ static void COPTMEX_initMLpSol(coptmex_mlpsol *mlpsol) {
   mlpsol->redcost     = NULL;
   mlpsol->slack       = NULL;
   mlpsol->dual        = NULL;
+  mlpsol->ray         = NULL;
+  mlpsol->farkas      = NULL;
   mlpsol->qcslack     = NULL;
   mlpsol->psdcolvalue = NULL;
   mlpsol->psdcoldual  = NULL;

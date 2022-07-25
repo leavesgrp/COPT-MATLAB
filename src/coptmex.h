@@ -119,6 +119,8 @@
 #define COPTMEX_RESULT_REDCOST     "rc"
 #define COPTMEX_RESULT_SLACK       "slack"
 #define COPTMEX_RESULT_DUAL        "pi"
+#define COPTMEX_RESULT_PRIMALRAY   "primalray"
+#define COPTMEX_RESULT_DUALFARKAS  "dualfarkas"
 
 #define COPTMEX_RESULT_QCSLACK     "qcslack"
 
@@ -338,6 +340,8 @@ typedef struct coptmex_clpsol_s {
   double *colDual;
   double *rowSlack;
   double *rowDual;
+  double *primalRay;
+  double *dualFarkas;
 
   double *qRowSlack;
 
@@ -395,6 +399,8 @@ typedef struct coptmex_mlpsol_s {
   mxArray *redcost;
   mxArray *slack;
   mxArray *dual;
+  mxArray *ray;
+  mxArray *farkas;
   mxArray *qcslack;
   mxArray *psdcolvalue;
   mxArray *psdcoldual;

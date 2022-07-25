@@ -365,6 +365,32 @@ static int COPTMEX_getLpResult(copt_prob *prob, mxArray **out_lpresult) {
     }
   }
 
+  if (csol.nStatus == COPT_LPSTATUS_INFEASIBLE ||
+      csol.nStatus == COPT_LPSTATUS_UNBOUNDED) {
+    int iReqFarkasRay = 0;
+    COPTMEX_CALL(COPT_GetIntParam(prob, COPT_INTPARAM_REQFARKASRAY, &iReqFarkasRay));
+
+    if (iReqFarkasRay) {
+      if (csol.nStatus == COPT_LPSTATUS_INFEASIBLE) {
+        msol.farkas = mxCreateDoubleMatrix(csol.nRow, 1, mxREAL);
+        if (!msol.farkas) {
+          retcode = COPT_RETCODE_MEMORY;
+          goto exit_cleanup;
+        }
+        csol.dualFarkas = mxGetDoubles(msol.farkas);
+      }
+
+      if (csol.nStatus == COPT_LPSTATUS_UNBOUNDED) {
+        msol.ray = mxCreateDoubleMatrix(csol.nCol, 1, mxREAL);
+        if (!msol.ray) {
+          retcode = COPT_RETCODE_MEMORY;
+          goto exit_cleanup;
+        }
+        csol.primalRay = mxGetDoubles(msol.ray);
+      }
+    }
+  }
+
   if (csol.hasBasis) {
     msol.varbasis    = mxCreateDoubleMatrix(csol.nCol, 1, mxREAL);
     msol.constrbasis = mxCreateDoubleMatrix(csol.nRow, 1, mxREAL);
@@ -401,6 +427,14 @@ static int COPTMEX_getLpResult(copt_prob *prob, mxArray **out_lpresult) {
     if (csol.nPSDConstr > 0) {
       COPTMEX_CALL(COPT_GetPSDSolution(prob, NULL, csol.psdRowSlack, csol.psdRowDual, NULL));
     }
+  }
+
+  if (csol.dualFarkas != NULL) {
+    COPTMEX_CALL(COPT_GetRowInfo(prob, COPT_DBLINFO_DUALFARKAS, csol.nRow, NULL, csol.dualFarkas));
+  }
+
+  if (csol.primalRay != NULL) {
+    COPTMEX_CALL(COPT_GetColInfo(prob, COPT_DBLINFO_PRIMALRAY, csol.nCol, NULL, csol.primalRay));
   }
 
   if (csol.hasBasis) {
@@ -490,6 +524,18 @@ static int COPTMEX_getLpResult(copt_prob *prob, mxArray **out_lpresult) {
       mxAddField(lpResult, COPTMEX_RESULT_PSDPI);
       mxSetField(lpResult, 0, COPTMEX_RESULT_PSDPI, msol.psdrowdual);
     }
+  }
+
+  if (msol.farkas != NULL) {
+    // 'dualfarkas'
+    mxAddField(lpResult, COPTMEX_RESULT_DUALFARKAS);
+    mxSetField(lpResult, 0, COPTMEX_RESULT_DUALFARKAS, msol.farkas);
+  }
+
+  if (msol.ray != NULL) {
+    // 'primalray'
+    mxAddField(lpResult, COPTMEX_RESULT_PRIMALRAY);
+    mxSetField(lpResult, 0, COPTMEX_RESULT_PRIMALRAY, msol.ray);
   }
 
   if (csol.hasBasis) {

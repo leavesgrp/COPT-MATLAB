@@ -369,6 +369,14 @@ Indicator约束相关的域：
 
   线性规划中对偶变量的取值。
 
+- `primalray`
+
+  无界线性规划模型的主元极射线。需要设置参数 `ReqFarkasRay` 为 1。
+
+- `dualfarkas`
+
+  不可行线性规划模型的对偶Farkas。需要设置参数 `ReqFarkasRay` 为 1。
+
 - `qcslack`
 
   二次约束规划中二次约束的取值。
