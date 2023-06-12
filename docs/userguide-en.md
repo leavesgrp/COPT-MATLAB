@@ -523,7 +523,7 @@ Feasibility relaxation result information, includes:
 
     `probfile`
 
-      File name of the exported model. Currently support MPS, LP and COPT binary format. Automatically identified by the solver.
+      File name of the exported model. Currently support MPS, LP, CBF and COPT binary format. Automatically identified by the solver.
 
   - **Examples**
 
@@ -568,7 +568,7 @@ Feasibility relaxation result information, includes:
 
     `probfile`
 
-      File name of the model to import. Currently support MPS, LP and COPT binary format. Automatically identified by the solver.
+      File name of the model to import. Currently support MPS, LP, SDPA, CBF and COPT binary format. Automatically identified by the solver.
 
     `parameter`
 
@@ -616,7 +616,7 @@ Feasibility relaxation result information, includes:
 
     `probfile`
 
-      File name of the model to import. Currently support MPS, LP and COPT binary format. Automatically identified by the solver.
+      File name of the model to import. Currently support MPS, LP, SDPA, CBF and COPT binary format. Automatically identified by the solver.
 
     `parameter`
 
@@ -683,6 +683,49 @@ Feasibility relaxation result information, includes:
     relaxinfo = copt_feasrelax(problem, penalties, parameter);
     ```
 
+- `copt_tune` function
+
+  - **Synopsis**
+
+    `copt_tune(probfile)`
+
+    `copt_tune(probfile, parameter)`
+
+    `copt_tune(problem)`
+
+    `copt_tune(problem, parameter)`
+
+  - **Description**
+
+    The function has multiple uses given different inputs. 
+
+    If the input is a model filename with a parameter info struct, the function reads the model and parameters from the input, and tune the problem.
+    If the input is a model info struct with a parameter info struct, the function extracts the relevant information from the input, constructs the model and tune it.
+
+  - **Arguments**
+
+    `probfile`
+
+      File name of the model to import. Currently support MPS, LP, SDPA, CBF and COPT binary format. Automatically identified by the solver.
+
+    `parameter`
+
+      Parameter info struct. Type of MATLAB `struct`.
+
+    `problem`
+
+      Model info struct. Type of MATLAB `struct`.
+
+  - **Example**
+
+    ```matlab
+    copt_tune('testmip.mps');
+
+    % Set baseline timelimit
+    lpparam.TimeLimit = 10;
+    copt_tune('testlp.lp', lpparam);
+    ```
+
 ### Other functions
 
-The `COPT-MATLAB Toolbox` provides  `copt_linprog` and `copt_intlinprog` to overwrite the corresponding `linprog` and `intlinprog` functions in the `MATLAB Optimization Toolbox`.
+The `COPT-MATLAB Toolbox` provides  `copt_linprog`, `copt_intlinprog` and `copt_quadprog` to overwrite the corresponding `linprog`, `intlinprog` and `quadprog` functions in the `MATLAB Optimization Toolbox`.

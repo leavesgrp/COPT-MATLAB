@@ -147,6 +147,7 @@
 
 /* The feasibility relaxation result fields */
 #define COPTMEX_FEASRELAX_OBJ      "relaxobj"
+#define COPTMEX_FEASRELAX_VALUE    "relaxvalue"
 #define COPTMEX_FEASRELAX_LB       "relaxlb"
 #define COPTMEX_FEASRELAX_UB       "relaxub"
 #define COPTMEX_FEASRELAX_LHS      "relaxlhs"
@@ -381,6 +382,7 @@ typedef struct coptmex_ciisinfo_s {
 
 typedef struct coptmex_crelaxinfo_s {
   double dObjVal;
+  double *colValue;
   double *colLowRlx;
   double *colUppRlx;
   double *rowLowRlx;
@@ -433,6 +435,7 @@ typedef struct coptmex_miisinfo_s {
 
 typedef struct coptmex_mrelaxinfo_s {
   mxArray *relaxobj;
+  mxArray *relaxvalue;
   mxArray *relaxlb;
   mxArray *relaxub;
   mxArray *relaxlhs;

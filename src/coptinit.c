@@ -229,7 +229,8 @@ static void COPTMEX_initCIISInfo(coptmex_ciisinfo *ciisinfo) {
 
 /* Initialize C-style feasibility relaxation information */
 static void COPTMEX_initCRelaxInfo(coptmex_crelaxinfo *crelaxinfo) {
-  crelaxinfo->dObjVal       = 0.0;
+  crelaxinfo->dObjVal   = 0.0;
+  crelaxinfo->colValue  = NULL;
   crelaxinfo->colLowRlx = NULL;
   crelaxinfo->colUppRlx = NULL;
   crelaxinfo->rowLowRlx = NULL;
@@ -289,11 +290,12 @@ static void COPTMEX_initMIISInfo(coptmex_miisinfo *miisinfo) {
 
 /* Initialize MEX-style feasibility relaxation information */
 static void COPTMEX_initMRelaxInfo(coptmex_mrelaxinfo *mrelaxinfo) {
-  mrelaxinfo->relaxobj = NULL;
-  mrelaxinfo->relaxlb  = NULL;
-  mrelaxinfo->relaxub  = NULL;
-  mrelaxinfo->relaxlhs = NULL;
-  mrelaxinfo->relaxrhs = NULL;
+  mrelaxinfo->relaxobj   = NULL;
+  mrelaxinfo->relaxvalue = NULL;
+  mrelaxinfo->relaxlb    = NULL;
+  mrelaxinfo->relaxub    = NULL;
+  mrelaxinfo->relaxlhs   = NULL;
+  mrelaxinfo->relaxrhs   = NULL;
   return;
 }
 

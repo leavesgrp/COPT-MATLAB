@@ -1,26 +1,26 @@
-function [x,fval,exitflag,output,lambda] = copt_linprog(f,A,b,Aeq,beq,lb,ub,options)
-% copt_linprog Solve LP problem using the Cardinal Optimizer
+function [x,fval,exitflag,output,lambda] = copt_quadprog(H,f,A,b,Aeq,beq,lb,ub,options)
+% copt_quadprog Solve QP problem using the Cardinal Optimizer
 %
-% This function implements the 'linprog' interface of MATLAB Optimization Toolbox.
+% This function implements the 'quadprog' interface of MATLAB Optimization Toolbox.
 %
-% x = copt_linprog(f, A, b) solve the problem below:
+% x = copt_quadprog(H, f, A, b) solve the problem below:
 %
-%              minimize:        f' * x
+%              minimize:   1/2 * x' * H * x + f' * x
 %              subject to:
 %                             A * x <= b
 %
-% x = copt_linprog(f, A, b, Aeq, beq) solve the problem below:
+% x = copt_quadprog(H, f, A, b, Aeq, beq) solve the problem below:
 %
-%              minimize:        f' * x
+%              minimize:   1/2 * x' * H * x + f' * x
 %              subject to:
 %                             A * x <= b
 %                           Aeq * x = beq
 %
 % Set A = [], b = [] if no inequalities exist.
 %
-% x = copt_linprog(f, A, b, Aeq, beq, lb, ub) solve the problem below:
+% x = copt_quadprog(H, f, A, b, Aeq, beq, lb, ub) solve the problem below:
 %
-%              minimize:        f' * x
+%              minimize:   1/2 * x' * H * x + f' * x
 %              subject to:
 %                             A * x <= b
 %                           Aeq * x = beq
@@ -28,9 +28,9 @@ function [x,fval,exitflag,output,lambda] = copt_linprog(f,A,b,Aeq,beq,lb,ub,opti
 %
 % Set Aeq = [], beq = [] if no equalities exist.
 %
-% x = copt_linprog(f, A, b, Aeq, beq, lb, ub, options) solve the problem below:
+% x = copt_quadprog(H, f, A, b, Aeq, beq, lb, ub, options) solve the problem below:
 %
-%              minimize:        f' * x
+%              minimize:   1/2 * x' * H * x + f' * x
 %              subject to:
 %                             A * x <= b
 %                           Aeq * x = beq
@@ -39,26 +39,24 @@ function [x,fval,exitflag,output,lambda] = copt_linprog(f,A,b,Aeq,beq,lb,ub,opti
 % Supported options are:
 %
 %   options.Display                Logging
-%   options.Algorithm              Method to solve the LP
-%   options.Preprocess             Presolve
 %   options.MaxIterations          Maximum number of barrier iterations
 %   options.MaxTime                Time limit
 %   options.ConstraintTolerance    Primal feasilibity tolerance
 %   options.OptimalityTolerance    Dual feasibility tolerance
 %
-% x = copt_linprog(problem) solve problem specified by argument 'problem'.
+% x = copt_quadprog(problem) solve problem specified by argument 'problem'.
 %
-% [x, fval] = copt_linprog(__) solve the problem above, and return variable solution
+% [x, fval] = copt_quadprog(__) solve the problem above, and return variable solution
 % and objective value.
 %
-% [x, fval, exitflag, output] = copt_linprog(__) solve the problem above, and return
+% [x, fval, exitflag, output] = copt_quadprog(__) solve the problem above, and return
 % variable solution, objective value, exit condition and information of the
 % optimization process.
 %
 % Exit conditions are:
 %
 %    1                             Optimal
-%    0                             Timeout
+%    0                             Iteration limit/Timeout
 %   -2                             Infeasible
 %   -3                             Unbounded
 %
@@ -68,7 +66,7 @@ function [x,fval,exitflag,output,lambda] = copt_linprog(f,A,b,Aeq,beq,lb,ub,opti
 %    output.message                COPT status
 %    output.constrviolation        Maximal violation for constraints and bounds
 %
-% [x, fval, exitflag, output, lambda] = copt_linprog(__) solve the problem above,
+% [x, fval, exitflag, output, lambda] = copt_quadprog(__) solve the problem above,
 % and return variable solution, objective value, exit condition, information of
 % the optimization process and Lagrange multipliers of the solution.
 %
@@ -82,9 +80,10 @@ function [x,fval,exitflag,output,lambda] = copt_linprog(f,A,b,Aeq,beq,lb,ub,opti
 
 %% Check input arguments
 if nargin == 1
-  if isstruct(f) && isfield(f, 'solver') && strcmpi(f.solver, 'copt_linprog')
+  if isstruct(f) && isfield(f, 'solver') && strcmpi(f.solver, 'copt_quadprog')
     isprobonly = 1;
 
+    Hcost   = coptmexgetfield(f, 'H');
     fcost   = coptmexgetfield(f, 'f');
     A       = coptmexgetfield(f, 'Aineq');
     b       = coptmexgetfield(f, 'bineq');
@@ -94,31 +93,31 @@ if nargin == 1
     ub      = coptmexgetfield(f, 'ub');
     options = coptmexgetfield(f, 'options');
 
-    if isempty(fcost) || isempty(A) || isempty(b)
+    if isempty(Hcost) || isempty(A) || isempty(b)
       error('copt_linprog: Invalid data of "problem".');
     end
   else
-    error('copt_linprog: Invalid type of "problem".');
+    error('copt_quadprog: Invalid type of "problem".');
   end
 else
   isprobonly = 0;
 
-  if nargin < 3 || nargin > 8
-    error('copt_linprog: Invalid number of inputs.');
+  if nargin < 4 || nargin > 9
+    error('copt_quadprog: Invalid number of inputs.');
   end
-  if nargin < 8
+  if nargin < 9
     options = struct();
   end
-  if nargin < 7
+  if nargin < 8
     ub = [];
   end
-  if nargin < 6
+  if nargin < 7
     lb = [];
   end
-  if nargin < 5
+  if nargin < 6
     beq = [];
   end
-  if nargin < 4
+  if nargin < 5
     Aeq = [];
   end
 end
@@ -128,8 +127,10 @@ problem.A = [sparse(A); sparse(Aeq)];
 ncol = size(problem.A, 2);
 
 if isprobonly == 1
+  problem.Q = 0.5 * sparse(Hcost);
   problem.obj = fcost;
 else
+  problem.Q = 0.5 * sparse(H);
   problem.obj = f;
 end
 if ~isempty(lb)
@@ -157,20 +158,6 @@ end
 if isfield(options, 'Display') || ismexoptim == 1
   if any(strcmp(options.Display, {'off', 'none'}))
     parameter.Logging = 0;
-  end
-end
-% 'Algorithm'
-if isfield(options, 'Algorithm') || ismexoptim == 1
-  if any(strcmp(options.Algorithm, {'interior-point-legacy', 'interior-point'}))
-    parameter.LpMethod = 2;
-  end
-end
-% 'Preprocess'
-if isfield(options, 'Preprocess') || ismexoptim == 1
-  if strcmp(options.Preprocess, 'basic')
-    parameter.Presolve = -1;
-  elseif strcmp(options.Preprocess, 'none')
-    parameter.Presolve = 0;
   end
 end
 % 'MaxIterations' (only available to Barrier Method in COPT)
@@ -217,7 +204,7 @@ else
   exitflag = 0;     % Terminated by limits
 end
 % 'output'
-output.iterations = solution.simplexiter;
+output.iterations = solution.barrieriter;
 output.message = solution.status;
 output.constrviolation = [];
 if isfield(solution, 'x')
@@ -257,4 +244,4 @@ else
   val = [];
 end
 
-%% End of copt_linprog()
+%% End of copt_quadprog()

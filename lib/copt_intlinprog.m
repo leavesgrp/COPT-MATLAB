@@ -39,13 +39,16 @@ function [x,fval,exitflag,output] = copt_intlinprog(f,intcon,A,b,Aeq,beq,lb,ub,x
 %
 % Supported options are:
 %
-%   options.CutGeneration               Cut generation level
 %   options.Display                     Logging
+%   options.CutGeneration               Cut generation level
 %   options.Heuristics                  Heuristic generation level
 %   options.IntegerPreprocess           MIP presolve
 %   options.MaxNodes                    Node limit
 %   options.MaxTime                     Time limit
 %   options.RelativeGapTolerance        Relative MIP gap
+%   options.AbsoluteGapTolerance        Absolute MIP gap
+%   options.ConstraintTolerance         Tolerance of constraints
+%   options.IntegerTolerance            Tolerance of integer variables
 %
 % x = copt_intlinprog(problem) solve problem specified by argument 'problem'.
 %
@@ -154,42 +157,44 @@ if isa(options, 'optim.options.SolverOptions')
 else
   ismexoptim = 0;
 end
-% 'CutGeneration'
-if isfield(options, 'CutGeneration') || ismexoptim == 1
-  if strcmpi(options.CutGeneration, 'none')
-    parameter.CutLevel = 0;
-  elseif strcmpi(options.CutGeneration, 'basic')
-    parameter.CutLevel = 1;
-  elseif strcmpi(options.CutGeneration, 'intermediate')
-    parameter.CutLevel = 2;
-  elseif strcmpi(options.CutGeneration, 'advanced')
-    parameter.CutLevel = 3;
-  end
-end
 % 'Display'
 if isfield(options, 'Display') || ismexoptim == 1
-  if any(strcmpi(options.Display, {'off', 'none'}))
+  if any(strcmp(options.Display, {'off', 'none'}))
     parameter.Logging = 0;
+  end
+end
+% 'CutGeneration'
+if isfield(options, 'CutGeneration') || ismexoptim == 1
+  if strcmp(options.CutGeneration, 'none')
+    parameter.CutLevel = 0;
+  elseif strcmp(options.CutGeneration, 'basic')
+    parameter.CutLevel = 1;
+  elseif strcmp(options.CutGeneration, 'intermediate')
+    parameter.CutLevel = 2;
+  elseif strcmp(options.CutGeneration, 'advanced')
+    parameter.CutLevel = 3;
   end
 end
 % 'Heuristics'
 if isfield(options, 'Heuristics') || ismexoptim == 1
-  if strcmpi(options.Heuristics, 'none')
+  if strcmp(options.Heuristics, 'none')
     parameter.HeurLevel = 0;
-  elseif strcmpi(options.Heuristics, 'basic')
+  elseif strcmp(options.Heuristics, 'basic')
     parameter.HeurLevel = 1;
-  elseif strcmpi(options.Heuristics, 'intermediate')
+  elseif strcmp(options.Heuristics, 'intermediate')
     parameter.HeurLevel = 2;
-  elseif strcmpi(options.Heuristics, 'advanced')
+  elseif strcmp(options.Heuristics, 'advanced')
     parameter.HeurLevel = 3;
   end
 end
 % 'IntegerPreprocess'
 if isfield(options, 'IntegerPreprocess') || ismexoptim == 1
-  if strcmpi(options.IntegerPreprocess, 'none')
+  if strcmp(options.IntegerPreprocess, 'none')
     parameter.Presolve = 0;
-  elseif any(strcmpi(options.IntegerPreprocess, {'basic', 'advanced'}))
+  elseif strcmp(options.IntegerPreprocess, 'basic')
     parameter.Presolve = 1;
+  elseif strcmp(options.IntegerPreprocess, 'advanced')
+    parameter.Presolve = 3;
   end
 end
 % 'MaxNodes'
@@ -203,6 +208,18 @@ end
 % 'RelativeGapTolerance'
 if isfield(options, 'RelativeGapTolerance') || ismexoptim == 1
   parameter.RelGap = options.RelativeGapTolerance;
+end
+% 'AbsoluteGapTolerance'
+if isfield(options, 'AbsoluteGapTolerance') || ismexoptim == 1
+  parameter.AbsGap = options.AbsoluteGapTolerance;
+end
+% 'ConstraintTolerance'
+if isfield(options, 'ConstraintTolerance') || ismexoptim == 1
+  parameter.FeasTol = options.ConstraintTolerance;
+end
+% 'IntegerTolerance'
+if isfield(options, 'IntegerTolerance') || ismexoptim == 1
+  parameter.IntTol = options.IntegerTolerance;
 end
 
 %% Solve the problem
@@ -222,11 +239,11 @@ else
   fval = [];
 end
 % 'exitflag'
-if strcmpi(solution.status, 'optimal')
+if strcmp(solution.status, 'optimal')
   exitflag = 1;   % Converged
-elseif strcmpi(solution.status, 'infeasible')
+elseif strcmp(solution.status, 'infeasible')
   exitflag = -2;  % No feasible solution
-elseif strcmpi(solution.status, 'unbounded')
+elseif strcmp(solution.status, 'unbounded')
   exitflag = -3;  % Root LP is unbounded
 elseif isfield(solution, 'x')
   exitflag = 2;   % Stopped with integer feasible solution

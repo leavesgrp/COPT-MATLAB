@@ -1,5 +1,11 @@
 #include "coptmex.h"
 
+/* Uncomment the following line for use with legacy MEX APIs */
+// #define COPTMEX_USE_LEGACYMEX
+#ifdef COPTMEX_USE_LEGACYMEX
+#define mxGetDoubles mxGetPr
+#endif
+
 extern int COPT_SearchParamAttr(copt_prob *prob, const char *name, int *p_type);
 
 extern int COPT_GetPSDSolution(copt_prob* prob,
@@ -2452,9 +2458,10 @@ static int COPTMEX_getFeasRelax(copt_prob *prob, mxArray **out_relax) {
   }
 
   if (nCol > 0) {
+    mrelaxinfo.relaxvalue = mxCreateDoubleMatrix(nCol, 1, mxREAL);
     mrelaxinfo.relaxlb = mxCreateDoubleMatrix(nCol, 1, mxREAL);
     mrelaxinfo.relaxub = mxCreateDoubleMatrix(nCol, 1, mxREAL);
-    if (!mrelaxinfo.relaxlb || !mrelaxinfo.relaxub) {
+    if (!mrelaxinfo.relaxvalue || !mrelaxinfo.relaxlb || !mrelaxinfo.relaxub) {
       retcode = COPT_RETCODE_MEMORY;
       goto exit_cleanup;
     }
@@ -2470,6 +2477,7 @@ static int COPTMEX_getFeasRelax(copt_prob *prob, mxArray **out_relax) {
   }
 
   if (nCol > 0) {
+    crelaxinfo.colValue = mxGetDoubles(mrelaxinfo.relaxvalue);
     crelaxinfo.colLowRlx = mxGetDoubles(mrelaxinfo.relaxlb);
     crelaxinfo.colUppRlx = mxGetDoubles(mrelaxinfo.relaxub);
   }
@@ -2483,6 +2491,7 @@ static int COPTMEX_getFeasRelax(copt_prob *prob, mxArray **out_relax) {
   *mxGetDoubles(mrelaxinfo.relaxobj) = crelaxinfo.dObjVal;
 
   if (nCol > 0) {
+    COPTMEX_CALL(COPT_GetColInfo(prob, COPT_DBLINFO_RELAXVALUE, nCol, NULL, crelaxinfo.colValue));
     COPTMEX_CALL(COPT_GetColInfo(prob, COPT_DBLINFO_RELAXLB, nCol, NULL, crelaxinfo.colLowRlx));
     COPTMEX_CALL(COPT_GetColInfo(prob, COPT_DBLINFO_RELAXUB, nCol, NULL, crelaxinfo.colUppRlx));
   }
@@ -2503,6 +2512,9 @@ static int COPTMEX_getFeasRelax(copt_prob *prob, mxArray **out_relax) {
   mxSetField(relaxInfo, 0, COPTMEX_FEASRELAX_OBJ, mrelaxinfo.relaxobj);
 
   if (nCol > 0) {
+    // 'relaxvalue'
+    mxAddField(relaxInfo, COPTMEX_FEASRELAX_VALUE);
+    mxSetField(relaxInfo, 0, COPTMEX_FEASRELAX_VALUE, mrelaxinfo.relaxvalue);
     // 'relaxlb'
     mxAddField(relaxInfo, COPTMEX_FEASRELAX_LB);
     mxSetField(relaxInfo, 0, COPTMEX_FEASRELAX_LB, mrelaxinfo.relaxlb);

@@ -514,7 +514,7 @@ IIS结果相关信息，包括以下域：
 
     `probfile`
 
-      待输出模型文件名。目前支持MPS格式、LP格式和COPT二进制格式的模型文件，根据文件后缀名进行自动识别。
+      待输出模型文件名。目前支持MPS格式、LP格式、CBF格式和COPT二进制格式的模型，根据文件后缀名进行自动识别。
 
   - **示例**
 
@@ -558,7 +558,7 @@ IIS结果相关信息，包括以下域：
 
     `probfile`
 
-      模型文件名。目前支持MPS格式、LP格式和COPT二进制格式的模型，根据文件后缀名自动识别。
+      模型文件名。目前支持MPS格式、LP格式、SDPA格式、CBF格式和COPT二进制格式的模型，根据文件后缀名自动识别。
 
     `parameter`
 
@@ -606,7 +606,7 @@ IIS结果相关信息，包括以下域：
 
     `probfile`
 
-      模型文件名。目前支持MPS格式、LP格式和COPT二进制格式的模型，根据文件后缀名自动识别。
+      模型文件名。目前支持MPS格式、LP格式、SDPA格式、CBF格式和COPT二进制格式的模型，根据文件后缀名自动识别。
 
     `parameter`
 
@@ -672,8 +672,50 @@ IIS结果相关信息，包括以下域：
     relaxinfo = copt_feasrelax(problem, penalties, parameter);
     ```
 
+- `copt_tune` 函数
+
+  - **概要**
+
+    `copt_tune(probfile)`
+
+    `copt_tune(probfile, parameter)`
+
+    `copt_tune(problem)`
+
+    `copt_tune(problem, parameter)`
+
+  - **描述**
+
+    若输入函数为模型文件及参数信息对象，则直接读取模型文件及参数信息对象中的设置并对指定模型进行调优。
+    若输入函数为模型信息对象和参数信息对象，则提取模型信息对象和参数信息对象中的相关信息，
+    在内部构建模型并进行调优。
+
+  - **参量**
+
+    `probfile`
+
+      模型文件名。目前支持MPS格式、LP格式、SDPA格式、CBF格式和COPT二进制格式的模型，根据文件后缀名自动识别。
+
+    `parameter`
+
+      参数信息对象。该变量类型为MATLAB的 `struct` 类型。
+
+    `problem`
+
+      模型信息对象。该变量类型为MATLAB的 `struct` 类型。
+
+  - **示例**
+
+    ```matlab
+    copt_tune('testmip.mps');
+
+    % Set baseline timelimit
+    lpparam.TimeLimit = 10;
+    copt_tune('testlp.lp', lpparam);
+    ```
+
 ### 其它函数
 
-杉数求解器的MATLAB接口还提供了与MATLAB的优化工具箱函数 `linprog` 和 `intlinprog` 具有
-相同功能的函数封装，分别名为 `copt_linprog` 和 `copt_intlinprog` 函数，
-使用方法与MATLAB优化工具箱提供的函数用法相同。
+杉数求解器的MATLAB接口还提供了与MATLAB的优化工具箱函数 `linprog` 、`intlinprog` 和
+`quadprog` 具有相同功能的函数封装，分别名为 `copt_linprog` 、 `copt_intlinprog` 和
+`copt_quadprog` 函数，使用方法与MATLAB优化工具箱提供的函数用法相同。
