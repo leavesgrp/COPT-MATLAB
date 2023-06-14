@@ -7,26 +7,12 @@ void mexFunction(int nlhs, mxArray* plhs[], int nrhs, const mxArray* prhs[])
   copt_prob* prob = NULL;
 
   // Check if arguments are valid
-  if (nlhs != 0)
+  if (nlhs > 1)
   {
     COPTMEX_errorMsg(COPTMEX_ERROR_BAD_NUM, "outputs");
     goto exit_cleanup;
   }
-
-  if (nrhs == 2)
-  {
-    if (!mxIsStruct(prhs[0]))
-    {
-      COPTMEX_errorMsg(COPTMEX_ERROR_BAD_TYPE, "problem");
-      goto exit_cleanup;
-    }
-    if (!mxIsChar(prhs[1]))
-    {
-      COPTMEX_errorMsg(COPTMEX_ERROR_BAD_TYPE, "probfile");
-      goto exit_cleanup;
-    }
-  }
-  else
+  if (nrhs > 0)
   {
     COPTMEX_errorMsg(COPTMEX_ERROR_BAD_NUM, "inputs");
     goto exit_cleanup;
@@ -36,10 +22,11 @@ void mexFunction(int nlhs, mxArray* plhs[], int nrhs, const mxArray* prhs[])
   COPTMEX_CALL(COPT_CreateEnv(&env));
   COPTMEX_CALL(COPT_CreateProb(env, &prob));
 
-  // Extract and load problem data
-  COPTMEX_CALL(COPTMEX_loadModel(prob, prhs[0]));
-  // Write problem to file
-  COPTMEX_CALL(COPTMEX_writeModel(prob, prhs[1]));
+  // Generate default parameters
+  if (nlhs == 1)
+  {
+    COPTMEX_CALL(COPTMEX_getDefaultParams(prob, &plhs[0]));
+  }
 
 exit_cleanup:
   if (retcode != COPT_RETCODE_OK)

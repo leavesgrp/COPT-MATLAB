@@ -8,7 +8,7 @@ CFLAGS = -O2 -std=c99 -fPIC -Werror -DNDEBUG -DMATLAB_MEX_FILE -Wno-incompatible
 C_INCS = -I. -I$(MATLAB_HOME)/extern/include -I$(COPT_HOME)/include
 C_LIBS = -L$(COPT_HOME)/lib -lcopt -L$(MATLAB_HOME)/bin/glnxa64 -lmx -lmex -lmat -lm -ldl
 
-C_MEXS = copt_read copt_solve copt_write copt_computeiis copt_feasrelax copt_tune
+C_MEXS = copt_read copt_solve copt_write copt_computeiis copt_feasrelax copt_tune copt_defaultparams
 
 all: $(C_MEXS)
 
@@ -35,6 +35,10 @@ copt_feasrelax: copt_feasrelax.c coptmex.c coptmex.h coptinit.c
 copt_tune: copt_tune.c coptmex.c coptmex.h coptinit.c
 	@$(CC) $(CFLAGS) $(C_INCS) -shared -o copt_tune.mexa64 copt_tune.c coptmex.c $(C_LIBS)
 	@cp copt_tune.mexa64 ../lib
+
+copt_defaultparams: copt_defaultparams.c coptmex.c coptmex.h coptinit.c
+	@$(CC) $(CFLAGS) $(C_INCS) -shared -o copt_defaultparams.mexa64 copt_defaultparams.c coptmex.c $(C_LIBS)
+	@cp copt_defaultparams.mexa64 ../lib
 
 clean:
 	@rm -f *.mexa64

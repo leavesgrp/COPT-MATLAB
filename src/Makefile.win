@@ -8,7 +8,7 @@ CFLAGS = /nologo /O2 /MT /WX /DNDEBUG /DMATLAB_MEX_FILE
 C_INCS = -I. -I"$(MATLAB_HOME)\extern\include" -I"$(COPT_HOME)\include"
 C_LIBS = /LIBPATH:"$(COPT_HOME)\lib" copt.lib /LIBPATH:"$(MATLAB_HOME)\extern\lib\win64\microsoft" libmx.lib libmex.lib libmat.lib
 
-C_MEXS = copt_read copt_solve copt_write copt_computeiis copt_feasrelax copt_tune
+C_MEXS = copt_read copt_solve copt_write copt_computeiis copt_feasrelax copt_tune copt_defaultparams
 
 all: $(C_MEXS)
 
@@ -35,6 +35,10 @@ copt_feasrelax: copt_feasrelax.c coptmex.c coptmex.h coptinit.c
 copt_tune: copt_tune.c coptmex.c coptmex.h coptinit.c
 	@$(CC) $(CFLAGS) $(C_INCS) copt_tune.c coptmex.c /link /dll /out:copt_tune.mexw64 $(C_LIBS) /export:mexFunction
 	@copy /Y copt_tune.mexw64 ..\lib > nul
+
+copt_defaultparams: copt_defaultparams.c coptmex.c coptmex.h coptinit.c
+	@$(CC) $(CFLAGS) $(C_INCS) copt_defaultparams.c coptmex.c /link /dll /out:copt_defaultparams.mexw64 $(C_LIBS) /export:mexFunction
+	@copy /Y copt_defaultparams.mexw64 ..\lib > nul
 
 clean:
 	@del /s /q *.mexw64 *.exp *.lib *.obj > nul
