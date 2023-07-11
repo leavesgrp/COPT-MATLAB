@@ -485,9 +485,13 @@ int COPTMEX_readModel(copt_prob* prob, const mxArray* in_model);
 int COPTMEX_writeModel(copt_prob* prob, const mxArray* out_file);
 /* Extract and load data to model */
 int COPTMEX_loadModel(copt_prob* prob, const mxArray* in_model);
+/* Solve problem */
+int COPTMEX_solveModel(copt_prob* prob, const mxArray* in_model, int ifRead, mxArray** out_result, int ifRetResult);
 
 /* Check if solve problem via cone data */
 int COPTMEX_isConeModel(const mxArray* in_model);
+/* Load problem with cone data */
+int COPTMEX_loadConeModel(copt_prob* prob, const mxArray* in_model, int* p_nRow, int** p_outMap);
 /* Solve cone problem with cone data */
 int COPTMEX_solveConeModel(copt_prob* prob, const mxArray* in_model, mxArray** out_result, int ifRetResult);
 

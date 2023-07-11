@@ -78,8 +78,8 @@ void mexFunction(int nlhs, mxArray* plhs[], int nrhs, const mxArray* prhs[])
   //  2. 'struct': a struct that specify the problem data.
   if (mxIsChar(prhs[0]))
   {
-    // Read the problem from file
-    COPTMEX_CALL(COPTMEX_readModel(prob, prhs[0]));
+    // Read and solve the problem from file
+    COPTMEX_CALL(COPTMEX_solveModel(prob, prhs[0], 1, &plhs[0], retResult));
   }
   else if (mxIsStruct(prhs[0]))
   {
@@ -88,21 +88,11 @@ void mexFunction(int nlhs, mxArray* plhs[], int nrhs, const mxArray* prhs[])
     if (ifConeData)
     {
       COPTMEX_CALL(COPTMEX_solveConeModel(prob, prhs[0], &plhs[0], retResult));
-      goto exit_cleanup;
     }
     else
     {
-      COPTMEX_CALL(COPTMEX_loadModel(prob, prhs[0]));
+      COPTMEX_CALL(COPTMEX_solveModel(prob, prhs[0], 0, &plhs[0], retResult));
     }
-  }
-
-  // Solve the problem
-  COPTMEX_CALL(COPT_Solve(prob));
-
-  // Extract and save result
-  if (retResult == 1)
-  {
-    COPTMEX_CALL(COPTMEX_getResult(prob, &plhs[0]));
   }
 
 exit_cleanup:

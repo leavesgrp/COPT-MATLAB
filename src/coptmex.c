@@ -56,23 +56,23 @@ static const char* COPTMEX_statusInt2Str(int status)
 {
   switch (status)
   {
-  case 0:  // unstarted
+  case 0:   // unstarted
     return COPTMEX_STATUS_UNSTARTED;
-  case 1:  // optimal
+  case 1:   // optimal
     return COPTMEX_STATUS_OPTIMAL;
-  case 2:  // infeasible
+  case 2:   // infeasible
     return COPTMEX_STATUS_INFEASIBLE;
-  case 3:  // unbounded
+  case 3:   // unbounded
     return COPTMEX_STATUS_UNBOUNDED;
-  case 4:  // inf_or_unb
+  case 4:   // inf_or_unb
     return COPTMEX_STATUS_INF_OF_UNB;
-  case 5:  // numerical
+  case 5:   // numerical
     return COPTMEX_STATUS_NUMERICAL;
-  case 6:  // nodelimit
+  case 6:   // nodelimit
     return COPTMEX_STATUS_NODELIMIT;
-  case 8:  // timeout
+  case 8:   // timeout
     return COPTMEX_STATUS_TIMEOUT;
-  case 9:  // unfinished
+  case 9:   // unfinished
     return COPTMEX_STATUS_UNFINISHED;
   case 10:  // interrupted
     return COPTMEX_STATUS_INTERRUPTED;
@@ -1643,6 +1643,34 @@ exit_cleanup:
   return retcode;
 }
 
+/* Solve problem */
+int COPTMEX_solveModel(copt_prob* prob, const mxArray* in_model, int ifRead, mxArray** out_result, int ifRetResult)
+{
+  int retcode = 0;
+
+  // Extract and load data to problem
+  if (ifRead)
+  {
+    COPTMEX_CALL(COPTMEX_readModel(prob, in_model));
+  }
+  else
+  {
+    COPTMEX_CALL(COPTMEX_loadModel(prob, in_model));
+  }
+
+  // Solve the problem
+  COPTMEX_CALL(COPT_Solve(prob));
+
+  // Extract and save result
+  if (ifRetResult)
+  {
+    COPTMEX_CALL(COPTMEX_getResult(prob, out_result));
+  }
+
+exit_cleanup:
+  return retcode;
+}
+
 /* Check if solve problem via cone data */
 int COPTMEX_isConeModel(const mxArray* in_model)
 {
@@ -1661,8 +1689,8 @@ int COPTMEX_isConeModel(const mxArray* in_model)
   return ifConeData;
 }
 
-/* Solve cone problem with cone data */
-int COPTMEX_solveConeModel(copt_prob* prob, const mxArray* in_model, mxArray** out_result, int ifRetResult)
+/* Load problem with cone data */
+int COPTMEX_loadConeModel(copt_prob* prob, const mxArray* in_model, int* p_nRow, int** p_outMap)
 {
   int retcode = 0;
   coptmex_cconeprob cconeprob;
@@ -1841,11 +1869,14 @@ int COPTMEX_solveConeModel(copt_prob* prob, const mxArray* in_model, mxArray** o
     }
   }
 
-  outRowMap = (int*)mxCalloc(cconeprob.nRow, sizeof(int));
-  if (!outRowMap)
+  if (p_outMap != NULL)
   {
-    retcode = COPT_RETCODE_MEMORY;
-    goto exit_cleanup;
+    outRowMap = (int*)mxCalloc(cconeprob.nRow, sizeof(int));
+    if (!outRowMap)
+    {
+      retcode = COPT_RETCODE_MEMORY;
+      goto exit_cleanup;
+    }
   }
 
   // Load cone problem data
@@ -1856,38 +1887,16 @@ int COPTMEX_solveConeModel(copt_prob* prob, const mxArray* in_model, mxArray** o
       cconeprob.colMatIdx, cconeprob.colMatElem, cconeprob.rowRhs, NULL, NULL, cconeprob.coneDim,
       cconeprob.rotateConeDim, NULL, NULL, NULL, NULL, cconeprob.psdDim, NULL, NULL, NULL, NULL, outRowMap));
 
-  COPTMEX_CALL(COPT_Solve(prob));
-
-  if (ifRetResult == 1)
+  if (p_nRow != NULL)
   {
-    COPTMEX_CALL(COPTMEX_getResult(prob, out_result));
-
-    if (*out_result != NULL)
-    {
-      mxArray* rowMap = mxCreateDoubleMatrix(cconeprob.nRow, 1, mxREAL);
-      if (rowMap == NULL)
-      {
-        retcode = COPT_RETCODE_MEMORY;
-        goto exit_cleanup;
-      }
-
-      double* rowMap_data = mxGetDoubles(rowMap);
-      for (int i = 0; i < cconeprob.nRow; ++i)
-      {
-        rowMap_data[i] = outRowMap[i];
-      }
-
-      mxAddField(*out_result, "rowmap");
-      mxSetField(*out_result, 0, "rowmap", rowMap);
-    }
+    *p_nRow = cconeprob.nRow;
+  }
+  if (p_outMap != NULL)
+  {
+    *p_outMap = outRowMap;
   }
 
 exit_cleanup:
-  if (outRowMap != NULL)
-  {
-    mxFree(outRowMap);
-  }
-
   if (cconeprob.qObjRow != NULL)
   {
     mxFree(cconeprob.qObjRow);
@@ -1926,6 +1935,52 @@ exit_cleanup:
   if (cconeprob.rowRhs != NULL)
   {
     mxFree(cconeprob.rowRhs);
+  }
+  return retcode;
+}
+
+/* Solve cone problem with cone data */
+int COPTMEX_solveConeModel(copt_prob* prob, const mxArray* in_model, mxArray** out_result, int ifRetResult)
+{
+  int retcode = 0;
+  int nRow = 0;
+  int* outRowMap = NULL;
+
+  // Extract and load problem data
+  COPTMEX_CALL(COPTMEX_loadConeModel(prob, in_model, &nRow, &outRowMap));
+
+  // Solve the problem
+  COPTMEX_CALL(COPT_Solve(prob));
+
+  // Extract and save result
+  if (ifRetResult == 1)
+  {
+    COPTMEX_CALL(COPTMEX_getResult(prob, out_result));
+
+    if (*out_result != NULL)
+    {
+      mxArray* rowMap = mxCreateDoubleMatrix(nRow, 1, mxREAL);
+      if (rowMap == NULL)
+      {
+        retcode = COPT_RETCODE_MEMORY;
+        goto exit_cleanup;
+      }
+
+      double* rowMap_data = mxGetDoubles(rowMap);
+      for (int i = 0; i < nRow; ++i)
+      {
+        rowMap_data[i] = outRowMap[i];
+      }
+
+      mxAddField(*out_result, "rowmap");
+      mxSetField(*out_result, 0, "rowmap", rowMap);
+    }
+  }
+
+exit_cleanup:
+  if (outRowMap != NULL)
+  {
+    mxFree(outRowMap);
   }
   return retcode;
 }

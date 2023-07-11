@@ -37,7 +37,16 @@ void mexFunction(int nlhs, mxArray* plhs[], int nrhs, const mxArray* prhs[])
   COPTMEX_CALL(COPT_CreateProb(env, &prob));
 
   // Extract and load problem data
-  COPTMEX_CALL(COPTMEX_loadModel(prob, prhs[0]));
+  int ifConeData = COPTMEX_isConeModel(prhs[0]);
+  if (ifConeData)
+  {
+    COPTMEX_CALL(COPTMEX_loadConeModel(prob, prhs[0], NULL, NULL));
+  }
+  else
+  {
+    COPTMEX_CALL(COPTMEX_loadModel(prob, prhs[0]));
+  }
+
   // Write problem to file
   COPTMEX_CALL(COPTMEX_writeModel(prob, prhs[1]));
 
