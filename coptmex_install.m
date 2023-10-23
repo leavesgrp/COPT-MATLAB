@@ -8,7 +8,9 @@ switch computer
   case 'GLNXA64'
     coptmex_os = 'Linux';
   case 'MACI64'
-    coptmex_os = 'MacOSX';
+    coptmex_os = 'MacOSX (x86)';
+  case 'MACA64'
+    coptmex_os = 'MacOSX (arm64)';
   otherwise
     error('Unsupported operating system %s', computer);
 end
