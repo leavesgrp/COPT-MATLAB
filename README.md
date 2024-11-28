@@ -5,6 +5,8 @@
 
 **注意:** 请首先前往 [杉数求解器许可申请](https://www.shanshu.ai/copt) 页面，申请免费的个人许可，并确保正确安装杉数求解器，验证可执行自带示例。
 
+**注意:** 使用 COPT-MATLAB 预编译包时，要求 MATLAB 版本为 2018b 或更高版本；如果版本低于此要求，则需要使用源码包自行编译。
+
 ## 安装
 
 本工具包提供了杉数求解器的MATLAB接口的C源代码文件和预编译包[（下载ZIP包）](https://github.com/leavesgrp/COPT-MATLAB/releases/)。
@@ -143,6 +145,8 @@ Constraint basis status:
 
 **Note** First of all, apply for free personal license [HERE](https://www.shanshu.ai/copt).
 Please make sure COPT is installed properly and you should be able to run examples in COPT package.
+
+**Note** To install release package of COPT-MATLAB, MATLAB of version 2018b or later is required. If the version is below this requirement, you need to compile the source package manually.
 
 ## Installation
 
