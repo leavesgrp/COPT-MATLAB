@@ -46,6 +46,7 @@ conedata.K = K;
 % Build sense and constant offset
 conedata.objsen = 'minimize';
 conedata.objcon = 0;
+conedata.vtype = 'C';
 
 % Model with conic problem data
 problem.conedata = conedata;

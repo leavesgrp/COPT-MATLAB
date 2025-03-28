@@ -55,6 +55,20 @@ static void COPTMEX_initCProb(coptmex_cprob* cprob)
   cprob->coneCnt = NULL;
   cprob->coneIdx = NULL;
 
+  // The optional exponential cone part
+  cprob->nExpCone = 0;
+  cprob->nExpConeSize = 0;
+  cprob->expConeType = NULL;
+  cprob->expConeIdx = NULL;
+
+  // The optional affine cone part
+  cprob->nAffCone = 0;
+  cprob->affMatBeg = NULL;
+  cprob->affMatCnt = NULL;
+  cprob->affMatIdx = NULL;
+  cprob->affMatElem = NULL;
+  cprob->affConst = NULL;
+
   // The optional Q objective part
   cprob->nQElem = 0;
 
@@ -94,6 +108,12 @@ static void COPTMEX_initMProb(coptmex_mprob* mprob)
   // The optional cone part
   mprob->cone = NULL;
 
+  // The optional exponential cone part
+  mprob->expcone = NULL;
+
+  // The optional affine cone part
+  mprob->affcone = NULL;
+
   // The optional Q objective part
   mprob->qobj = NULL;
 
@@ -126,6 +146,8 @@ static void COPTMEX_initCConeProb(coptmex_cconeprob* cconeprob)
   cconeprob->nPositive = 0;
   cconeprob->nCone = 0;
   cconeprob->nRotateCone = 0;
+  cconeprob->nPrimalExpCone = 0;
+  cconeprob->nDualExpCone = 0;
   cconeprob->nPSD = 0;
 
   cconeprob->coneDim = NULL;
@@ -133,6 +155,9 @@ static void COPTMEX_initCConeProb(coptmex_cconeprob* cconeprob)
   cconeprob->psdDim = NULL;
 
   cconeprob->colObj = NULL;
+
+  cconeprob->nScalarCol = 0;
+  cconeprob->colType = NULL;
 
   cconeprob->nQObjElem = 0;
   cconeprob->qObjRow = NULL;
@@ -158,10 +183,13 @@ static void COPTMEX_initMConeProb(coptmex_mconeprob* mconeprob)
   mconeprob->l = NULL;
   mconeprob->q = NULL;
   mconeprob->r = NULL;
+  mconeprob->ep = NULL;
+  mconeprob->ed = NULL;
   mconeprob->s = NULL;
 
   mconeprob->objsen = NULL;
   mconeprob->objcon = NULL;
+  mconeprob->vtype = NULL;
   mconeprob->Q = NULL;
 }
 
@@ -412,7 +440,7 @@ exit_cleanup:
 /* Check all parts of a cone problem */
 static int COPTMEX_checkConeModel(mxArray* conedata)
 {
-  int nrow = 0, ncol = 0;
+  int nrow = 0, ncol = 0, nscalarcol = 0;
   int isvalid = 1;
   char msgbuf[COPT_BUFFSIZE];
 
@@ -483,6 +511,7 @@ static int COPTMEX_checkConeModel(mxArray* conedata)
         COPTMEX_errorMsg(COPTMEX_ERROR_BAD_TYPE, msgbuf);
         goto exit_cleanup;
       }
+      nscalarcol += (int)mxGetScalar(f);
     }
 
     // 'l'
@@ -496,6 +525,7 @@ static int COPTMEX_checkConeModel(mxArray* conedata)
         COPTMEX_errorMsg(COPTMEX_ERROR_BAD_TYPE, msgbuf);
         goto exit_cleanup;
       }
+      nscalarcol += (int)mxGetScalar(l);
     }
 
     // 'q'
@@ -508,6 +538,13 @@ static int COPTMEX_checkConeModel(mxArray* conedata)
         snprintf(msgbuf, COPT_BUFFSIZE, "problem.conedata.%s", COPTMEX_MODEL_CONEK_Q);
         COPTMEX_errorMsg(COPTMEX_ERROR_BAD_TYPE, msgbuf);
         goto exit_cleanup;
+      }
+
+      int nCone = mxGetNumberOfElements(q);
+      double* coneDim_data = mxGetDoubles(q);
+      for (int i = 0; i < nCone; ++i)
+      {
+        nscalarcol += (int)coneDim_data[i];
       }
     }
 
@@ -522,6 +559,41 @@ static int COPTMEX_checkConeModel(mxArray* conedata)
         COPTMEX_errorMsg(COPTMEX_ERROR_BAD_TYPE, msgbuf);
         goto exit_cleanup;
       }
+
+      int nRotateCone = mxGetNumberOfElements(r);
+      double* rotateConeDim_data = mxGetDoubles(r);
+      for (int i = 0; i < nRotateCone; ++i)
+      {
+        nscalarcol += (int)rotateConeDim_data[i];
+      }
+    }
+
+    // 'ep'
+    mxArray* ep = mxGetField(conedata, 0, COPTMEX_MODEL_CONEK_EP);
+    if (ep != NULL)
+    {
+      if (!mxIsScalar(ep))
+      {
+        isvalid = 0;
+        snprintf(msgbuf, COPT_BUFFSIZE, "problem.conedata.%s", COPTMEX_MODEL_CONEK_EP);
+        COPTMEX_errorMsg(COPTMEX_ERROR_BAD_TYPE, msgbuf);
+        goto exit_cleanup;
+      }
+      nscalarcol += 3 * ((int)mxGetScalar(ep));
+    }
+
+    // 'ed'
+    mxArray* ed = mxGetField(conedata, 0, COPTMEX_MODEL_CONEK_ED);
+    if (ed != NULL)
+    {
+      if (!mxIsScalar(ed))
+      {
+        isvalid = 0;
+        snprintf(msgbuf, COPT_BUFFSIZE, "problem.conedata.%s", COPTMEX_MODEL_CONEK_ED);
+        COPTMEX_errorMsg(COPTMEX_ERROR_BAD_TYPE, msgbuf);
+        goto exit_cleanup;
+      }
+      nscalarcol += 3 * ((int)mxGetScalar(ed));
     }
 
     // 's'
@@ -590,7 +662,7 @@ static int COPTMEX_checkConeModel(mxArray* conedata)
       if (!mxIsChar(objsen))
       {
         isvalid = 0;
-        snprintf(msgbuf, COPT_BUFFSIZE, "problem.%s", COPTMEX_MODEL_CONE_OBJSEN);
+        snprintf(msgbuf, COPT_BUFFSIZE, "problem.conedata.%s", COPTMEX_MODEL_CONE_OBJSEN);
         COPTMEX_errorMsg(COPTMEX_ERROR_BAD_TYPE, msgbuf);
         goto exit_cleanup;
       }
@@ -603,8 +675,48 @@ static int COPTMEX_checkConeModel(mxArray* conedata)
       if (!mxIsScalar(objcon) || mxIsChar(objcon))
       {
         isvalid = 0;
-        snprintf(msgbuf, COPT_BUFFSIZE, "problem.%s", COPTMEX_MODEL_CONE_OBJCON);
+        snprintf(msgbuf, COPT_BUFFSIZE, "problem.conedata.%s", COPTMEX_MODEL_CONE_OBJCON);
         COPTMEX_errorMsg(COPTMEX_ERROR_BAD_TYPE, msgbuf);
+        goto exit_cleanup;
+      }
+    }
+
+    // 'vtype'
+    mxArray* vtype = mxGetField(conedata, 0, COPTMEX_MODEL_CONE_VTYPE);
+    if (vtype != NULL)
+    {
+      if (!mxIsChar(vtype))
+      {
+        isvalid = 0;
+        snprintf(msgbuf, COPT_BUFFSIZE, "problem.conedata.%s", COPTMEX_MODEL_CONE_VTYPE);
+        COPTMEX_errorMsg(COPTMEX_ERROR_BAD_TYPE, msgbuf);
+        goto exit_cleanup;
+      }
+      if (mxGetNumberOfElements(vtype) != nscalarcol && mxGetNumberOfElements(vtype) != 1)
+      {
+        isvalid = 0;
+        snprintf(msgbuf, COPT_BUFFSIZE, "problem.conedata.%s", COPTMEX_MODEL_CONE_VTYPE);
+        COPTMEX_errorMsg(COPTMEX_ERROR_BAD_NUM, msgbuf);
+        goto exit_cleanup;
+      }
+    }
+
+    // 'Q'
+    mxArray* Q = mxGetField(conedata, 0, COPTMEX_MODEL_CONE_Q);
+    if (Q != NULL)
+    {
+      if (!mxIsSparse(Q))
+      {
+        isvalid = 0;
+        snprintf(msgbuf, COPT_BUFFSIZE, "problem.conedata.%s", COPTMEX_MODEL_CONE_Q);
+        COPTMEX_errorMsg(COPTMEX_ERROR_BAD_DATA, msgbuf);
+        goto exit_cleanup;
+      }
+      if (mxGetM(Q) != nscalarcol || mxGetN(Q) != nscalarcol)
+      {
+        isvalid = 0;
+        snprintf(msgbuf, COPT_BUFFSIZE, "problem.conedata.%s", COPTMEX_MODEL_CONE_Q);
+        COPTMEX_errorMsg(COPTMEX_ERROR_BAD_NUM, msgbuf);
         goto exit_cleanup;
       }
     }
@@ -1119,6 +1231,145 @@ static int COPTMEX_checkModel(coptmex_mprob* mprob)
         {
           isvalid = 0;
           snprintf(msgbuf, COPT_BUFFSIZE, "problem.%s(%d).%s", COPTMEX_MODEL_CONE, i, COPTMEX_MODEL_CONEVARS);
+          COPTMEX_errorMsg(COPTMEX_ERROR_BAD_TYPE, msgbuf);
+          goto exit_cleanup;
+        }
+      }
+    }
+  }
+
+  // 'expcone'
+  if (mprob->expcone != NULL)
+  {
+    if (!mxIsStruct(mprob->expcone))
+    {
+      isvalid = 0;
+      snprintf(msgbuf, COPT_BUFFSIZE, "problem.%s", COPTMEX_MODEL_EXPCONE);
+      COPTMEX_errorMsg(COPTMEX_ERROR_BAD_TYPE, msgbuf);
+      goto exit_cleanup;
+    }
+
+    for (int i = 0; i < mxGetNumberOfElements(mprob->expcone); ++i)
+    {
+      mxArray* conetype = mxGetField(mprob->expcone, i, COPTMEX_MODEL_EXPCONETYPE);
+      mxArray* conevars = mxGetField(mprob->expcone, i, COPTMEX_MODEL_EXPCONEVARS);
+
+      if (conetype == NULL)
+      {
+        isvalid = 0;
+        snprintf(msgbuf, COPT_BUFFSIZE, "problem.%s(%d).%s", COPTMEX_MODEL_EXPCONE, i, COPTMEX_MODEL_EXPCONETYPE);
+        COPTMEX_errorMsg(COPTMEX_ERROR_BAD_DATA, msgbuf);
+        goto exit_cleanup;
+      }
+      else
+      {
+        if (!mxIsScalar(conetype) || mxIsChar(conetype))
+        {
+          isvalid = 0;
+          snprintf(msgbuf, COPT_BUFFSIZE, "problem.%s(%d).%s", COPTMEX_MODEL_EXPCONE, i, COPTMEX_MODEL_EXPCONETYPE);
+          COPTMEX_errorMsg(COPTMEX_ERROR_BAD_TYPE, msgbuf);
+          goto exit_cleanup;
+        }
+      }
+
+      if (conevars == NULL)
+      {
+        isvalid = 0;
+        snprintf(msgbuf, COPT_BUFFSIZE, "problem.%s(%d).%s", COPTMEX_MODEL_EXPCONE, i, COPTMEX_MODEL_EXPCONEVARS);
+        COPTMEX_errorMsg(COPTMEX_ERROR_BAD_DATA, msgbuf);
+        goto exit_cleanup;
+      }
+      else
+      {
+        if (!mxIsDouble(conevars) || mxIsScalar(conevars) || mxIsSparse(conevars))
+        {
+          isvalid = 0;
+          snprintf(msgbuf, COPT_BUFFSIZE, "problem.%s(%d).%s", COPTMEX_MODEL_EXPCONE, i, COPTMEX_MODEL_EXPCONEVARS);
+          COPTMEX_errorMsg(COPTMEX_ERROR_BAD_TYPE, msgbuf);
+          goto exit_cleanup;
+        }
+      }
+    }
+  }
+
+  // 'affcone'
+  if (mprob->affcone != NULL)
+  {
+    if (!mxIsStruct(mprob->affcone))
+    {
+      isvalid = 0;
+      snprintf(msgbuf, COPT_BUFFSIZE, "problem.%s", COPTMEX_MODEL_AFFCONE);
+      COPTMEX_errorMsg(COPTMEX_ERROR_BAD_TYPE, msgbuf);
+      goto exit_cleanup;
+    }
+
+    for (int i = 0; i < mxGetNumberOfElements(mprob->affcone); ++i)
+    {
+      mxArray* coneType = mxGetField(mprob->affcone, i, COPTMEX_MODEL_AFFCONETYPE);
+      mxArray* coneA = mxGetField(mprob->affcone, i, COPTMEX_MODEL_AFFCONEA);
+      mxArray* coneB = mxGetField(mprob->affcone, i, COPTMEX_MODEL_AFFCONEB);
+      mxArray* coneName = mxGetField(mprob->affcone, i, COPTMEX_MODEL_AFFCONENAME);
+
+      if (coneType == NULL)
+      {
+        isvalid = 0;
+        snprintf(msgbuf, COPT_BUFFSIZE, "problem.%s(%d).%s", COPTMEX_MODEL_AFFCONE, i, COPTMEX_MODEL_AFFCONETYPE);
+        COPTMEX_errorMsg(COPTMEX_ERROR_BAD_DATA, msgbuf);
+        goto exit_cleanup;
+      }
+      else
+      {
+        if (!mxIsScalar(coneType) || mxIsChar(coneType))
+        {
+          isvalid = 0;
+          snprintf(msgbuf, COPT_BUFFSIZE, "problem.%s(%d).%s", COPTMEX_MODEL_AFFCONE, i, COPTMEX_MODEL_AFFCONETYPE);
+          COPTMEX_errorMsg(COPTMEX_ERROR_BAD_TYPE, msgbuf);
+          goto exit_cleanup;
+        }
+      }
+
+      if (coneA == NULL)
+      {
+        isvalid = 0;
+        snprintf(msgbuf, COPT_BUFFSIZE, "problem.%s(%d).%s", COPTMEX_MODEL_AFFCONE, i, COPTMEX_MODEL_AFFCONEA);
+        COPTMEX_errorMsg(COPTMEX_ERROR_BAD_DATA, msgbuf);
+        goto exit_cleanup;
+      }
+      else
+      {
+        if (!mxIsSparse(coneA))
+        {
+          isvalid = 0;
+          snprintf(msgbuf, COPT_BUFFSIZE, "problem.%s(%d).%s", COPTMEX_MODEL_AFFCONE, i, COPTMEX_MODEL_AFFCONEA);
+          COPTMEX_errorMsg(COPTMEX_ERROR_BAD_TYPE, msgbuf);
+          goto exit_cleanup;
+        }
+      }
+
+      if (coneB != NULL)
+      {
+        if (!mxIsDouble(coneB))
+        {
+          isvalid = 0;
+          snprintf(msgbuf, COPT_BUFFSIZE, "problem.%s(%d).%s", COPTMEX_MODEL_AFFCONE, i, COPTMEX_MODEL_AFFCONEB);
+          COPTMEX_errorMsg(COPTMEX_ERROR_BAD_TYPE, msgbuf);
+          goto exit_cleanup;
+        }
+        if (mxGetNumberOfElements(coneB) != mxGetM(coneA))
+        {
+          isvalid = 0;
+          snprintf(msgbuf, COPT_BUFFSIZE, "problem.%s(%d).%s", COPTMEX_MODEL_AFFCONE, i, COPTMEX_MODEL_AFFCONEB);
+          COPTMEX_errorMsg(COPTMEX_ERROR_BAD_NUM, msgbuf);
+          goto exit_cleanup;
+        }
+      }
+
+      if (coneName != NULL)
+      {
+        if (!mxIsChar(coneName))
+        {
+          isvalid = 0;
+          snprintf(msgbuf, COPT_BUFFSIZE, "problem.%s(%d).%s", COPTMEX_MODEL_AFFCONE, i, COPTMEX_MODEL_AFFCONENAME);
           COPTMEX_errorMsg(COPTMEX_ERROR_BAD_TYPE, msgbuf);
           goto exit_cleanup;
         }

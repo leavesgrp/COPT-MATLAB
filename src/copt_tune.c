@@ -1,14 +1,5 @@
 #include "coptmex.h"
 
-void COPT_CALL COPTMEX_printLog(char* msg, void* userdata)
-{
-  if (msg != NULL)
-  {
-    mexPrintf("%s\n", msg);
-    mexEvalString("drawnow;");
-  }
-}
-
 void mexFunction(int nlhs, mxArray* plhs[], int nrhs, const mxArray* prhs[])
 {
   int retcode = COPT_RETCODE_OK;
@@ -47,9 +38,6 @@ void mexFunction(int nlhs, mxArray* plhs[], int nrhs, const mxArray* prhs[])
   // Create COPT environment and problem
   COPTMEX_CALL(COPT_CreateEnv(&env));
   COPTMEX_CALL(COPT_CreateProb(env, &prob));
-
-  // Set message callback
-  COPTMEX_CALL(COPT_SetLogCallback(prob, COPTMEX_printLog, NULL));
 
   // Processing the second argument, if exists.
   if (nrhs == 2)

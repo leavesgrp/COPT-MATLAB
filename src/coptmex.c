@@ -51,28 +51,39 @@ extern int COPT_LoadConeProb(copt_prob* prob,
   char const* const* psdColNames,
   int* outRowMap);
 
+static void COPT_CALL COPTMEX_printLog(char* msg, void* userdata)
+{
+  if (msg != NULL)
+  {
+    mexPrintf("%s\n", msg);
+    mexEvalString("drawnow;");
+  }
+}
+
 /* Convert status code from integer to string */
 static const char* COPTMEX_statusInt2Str(int status)
 {
   switch (status)
   {
-  case 0:   // unstarted
+  case 0:  // unstarted
     return COPTMEX_STATUS_UNSTARTED;
-  case 1:   // optimal
+  case 1:  // optimal
     return COPTMEX_STATUS_OPTIMAL;
-  case 2:   // infeasible
+  case 2:  // infeasible
     return COPTMEX_STATUS_INFEASIBLE;
-  case 3:   // unbounded
+  case 3:  // unbounded
     return COPTMEX_STATUS_UNBOUNDED;
-  case 4:   // inf_or_unb
+  case 4:  // inf_or_unb
     return COPTMEX_STATUS_INF_OF_UNB;
-  case 5:   // numerical
+  case 5:  // numerical
     return COPTMEX_STATUS_NUMERICAL;
-  case 6:   // nodelimit
+  case 6:  // nodelimit
     return COPTMEX_STATUS_NODELIMIT;
-  case 8:   // timeout
+  case 7:  // imprecise
+    return COPTMEX_STATUS_IMPRECISE;
+  case 8:  // timeout
     return COPTMEX_STATUS_TIMEOUT;
-  case 9:   // unfinished
+  case 9:  // unfinished
     return COPTMEX_STATUS_UNFINISHED;
   case 10:  // interrupted
     return COPTMEX_STATUS_INTERRUPTED;
@@ -166,6 +177,98 @@ void COPTMEX_errorMsg(int errcode, const char* errinfo)
   mexErrMsgIdAndTxt(errid, errtxt, errinfo);
 }
 
+/* Convert CSR matrix to CSC matrix */
+int COPTMEX_csr2csc(int* matBeg, int* matCnt, int* matIdx, double* matElem, mxArray* mat)
+{
+  int nrow = mxGetM(mat);
+  int ncol = mxGetN(mat);
+  mwIndex* jc = mxGetJc(mat);
+  mwIndex* ir = mxGetIr(mat);
+  double* val = mxGetDoubles(mat);
+
+  int* cnt = (int*)mxCalloc(ncol, sizeof(int));
+  if (!cnt)
+  {
+    return COPT_RETCODE_MEMORY;
+  }
+
+  for (int i = 0; i < nrow; ++i)
+  {
+    int ibeg = matBeg[i];
+    int iend = matBeg[i] + matCnt[i];
+    for (int j = ibeg; j < iend; ++j)
+    {
+      cnt[matIdx[j]]++;
+    }
+  }
+
+  jc[0] = 0;
+  for (int i = 1; i <= ncol; ++i)
+  {
+    jc[i] = jc[i - 1] + cnt[i - 1];
+  }
+
+  memset(cnt, 0, ncol * sizeof(int));
+  for (int i = 0; i < nrow; ++i)
+  {
+    int ibeg = matBeg[i];
+    int iend = matBeg[i] + matCnt[i];
+    for (int j = ibeg; j < iend; ++j)
+    {
+      int iout = matIdx[j];
+      int ielem = (int)jc[iout] + cnt[iout]++;
+      ir[ielem] = i;
+      val[ielem] = matElem[j];
+    }
+  }
+
+  mxFree(cnt);
+  return COPT_RETCODE_OK;
+}
+
+/* Convert CSC matrix to CSR matrix */
+int COPTMEX_csc2csr(mxArray* mat, int* matBeg, int* matCnt, int* matIdx, double* matElem)
+{
+  int nrow = mxGetM(mat);
+  int ncol = mxGetN(mat);
+  mwIndex* jc = mxGetJc(mat);
+  mwIndex* ir = mxGetIr(mat);
+  double* val = mxGetDoubles(mat);
+
+  memset(matCnt, 0, nrow * sizeof(int));
+  for (int i = 0; i < ncol; ++i)
+  {
+    int ibeg = (int)jc[i];
+    int iend = (int)jc[i + 1];
+    for (int j = ibeg; j < iend; ++j)
+    {
+      matCnt[ir[j]]++;
+    }
+  }
+
+  matBeg[0] = 0;
+  for (int i = 1; i < nrow; ++i)
+  {
+    matBeg[i] = matBeg[i - 1] + matCnt[i - 1];
+  }
+
+  memset(matCnt, 0, nrow * sizeof(int));
+  for (int i = 0; i < ncol; ++i)
+  {
+    int ibeg = (int)jc[i];
+    int iend = (int)jc[i + 1];
+    for (int j = ibeg; j < iend; ++j)
+    {
+      int iout = (int)ir[j];
+      int ielem = matBeg[iout] + matCnt[iout]++;
+      matIdx[ielem] = i;
+      matElem[ielem] = val[j];
+    }
+  }
+
+  return COPT_RETCODE_OK;
+}
+
 /* Convert CSC matrix to COO matrix */
 void COPTMEX_csc2coo(mxArray* q, int* qMatRow, int* qMatCol, double* qMatElem)
 {
@@ -245,7 +348,8 @@ int COPTMEX_dispBanner(void)
   char msgbuf[COPT_BUFFSIZE];
 
   COPTMEX_CALL(COPT_GetBanner(msgbuf, COPT_BUFFSIZE));
-  mexPrintf("%s", msgbuf);
+  mexPrintf("%s\n", msgbuf);
+  mexEvalString("drawnow;");
 
 exit_cleanup:
   return retcode;
@@ -826,6 +930,8 @@ int COPTMEX_getModel(copt_prob* prob, int nfiles, const mxArray** in_files, mxAr
   COPTMEX_CALL(COPT_GetIntAttr(prob, COPT_INTATTR_SOSS, &cprob.nSos));
   COPTMEX_CALL(COPT_GetIntAttr(prob, COPT_INTATTR_INDICATORS, &cprob.nIndicator));
   COPTMEX_CALL(COPT_GetIntAttr(prob, COPT_INTATTR_CONES, &cprob.nCone));
+  COPTMEX_CALL(COPT_GetIntAttr(prob, COPT_INTATTR_EXPCONES, &cprob.nExpCone));
+  COPTMEX_CALL(COPT_GetIntAttr(prob, COPT_INTATTR_AFFINECONES, &cprob.nAffCone));
   COPTMEX_CALL(COPT_GetIntAttr(prob, COPT_INTATTR_QCONSTRS, &cprob.nQConstr));
   COPTMEX_CALL(COPT_GetIntAttr(prob, COPT_INTATTR_OBJSENSE, &cprob.nObjSen));
   COPTMEX_CALL(COPT_GetIntAttr(prob, COPT_INTATTR_HASBASIS, &cprob.hasBasis));
@@ -1167,6 +1273,130 @@ int COPTMEX_getModel(copt_prob* prob, int nfiles, const mxArray** in_files, mxAr
     }
   }
 
+  if (cprob.nExpCone > 0)
+  {
+    const char* conefields[] = {COPTMEX_MODEL_EXPCONETYPE, COPTMEX_MODEL_EXPCONEVARS};
+    mprob.expcone = mxCreateStructMatrix(cprob.nExpCone, 1, 2, conefields);
+    if (!mprob.expcone)
+    {
+      retcode = COPT_RETCODE_MEMORY;
+      goto exit_cleanup;
+    }
+
+    COPTMEX_CALL(COPT_GetExpCones(prob, cprob.nExpCone, NULL, NULL, NULL, 0, &cprob.nExpConeSize));
+
+    cprob.expConeType = (int*)mxCalloc(cprob.nExpCone, sizeof(int));
+    cprob.expConeIdx = (int*)mxCalloc(cprob.nExpConeSize, sizeof(int));
+    if (!cprob.expConeType || !cprob.expConeIdx)
+    {
+      retcode = COPT_RETCODE_MEMORY;
+      goto exit_cleanup;
+    }
+
+    COPTMEX_CALL(
+      COPT_GetExpCones(prob, cprob.nExpCone, NULL, cprob.expConeType, cprob.expConeIdx, cprob.nExpConeSize, NULL));
+
+    for (int i = 0; i < cprob.nExpCone; ++i)
+    {
+      mxArray* coneType = mxCreateDoubleMatrix(1, 1, mxREAL);
+      mxArray* coneIdx = mxCreateDoubleMatrix(3, 1, mxREAL);
+      if (!coneType || !coneIdx)
+      {
+        retcode = COPT_RETCODE_MEMORY;
+        goto exit_cleanup;
+      }
+
+      *mxGetDoubles(coneType) = cprob.expConeType[i];
+
+      double* coneIdx_data = mxGetDoubles(coneIdx);
+      for (int iElem = 0; iElem < 3; ++iElem)
+      {
+        coneIdx_data[iElem] = cprob.expConeIdx[3 * i + iElem] + 1;
+      }
+
+      mxSetField(mprob.expcone, i, COPTMEX_MODEL_EXPCONETYPE, coneType);
+      mxSetField(mprob.expcone, i, COPTMEX_MODEL_EXPCONEVARS, coneIdx);
+    }
+  }
+
+  if (cprob.nAffCone > 0)
+  {
+    const char* conefields[] = {COPTMEX_MODEL_AFFCONETYPE, COPTMEX_MODEL_AFFCONEA, COPTMEX_MODEL_AFFCONEB,
+      COPTMEX_MODEL_AFFCONENAME};
+    mprob.affcone = mxCreateStructMatrix(cprob.nAffCone, 1, 4, conefields);
+    if (!mprob.affcone)
+    {
+      retcode = COPT_RETCODE_MEMORY;
+      goto exit_cleanup;
+    }
+
+    int nMaxConeSize = 0;
+    int nMaxConeElemSize = 0;
+    for (int i = 0; i < cprob.nAffCone; ++i)
+    {
+      int nConeSize = 0;
+      int nConeElemSize = 0;
+
+      COPTMEX_CALL(COPT_GetAffineCone(prob, i, NULL, &nConeSize, NULL, NULL, NULL, NULL, NULL, NULL, 0, NULL, NULL,
+        NULL, NULL, NULL, NULL, 0, &nConeElemSize));
+
+      nMaxConeSize = COPTMEX_MAX(nConeSize, nMaxConeSize);
+      nMaxConeElemSize = COPTMEX_MAX(nConeElemSize, nMaxConeElemSize);
+    }
+
+    cprob.affMatBeg = (int*)mxCalloc(nMaxConeSize, sizeof(int));
+    cprob.affMatCnt = (int*)mxCalloc(nMaxConeSize, sizeof(int));
+    cprob.affMatIdx = (int*)mxCalloc(nMaxConeElemSize, sizeof(int));
+    cprob.affMatElem = (double*)mxCalloc(nMaxConeElemSize, sizeof(double));
+    if (!cprob.affMatBeg || !cprob.affMatCnt || !cprob.affMatIdx || !cprob.affMatElem)
+    {
+      retcode = COPT_RETCODE_MEMORY;
+      goto exit_cleanup;
+    }
+
+    for (int i = 0; i < cprob.nAffCone; ++i)
+    {
+      int nConeSize = 0;
+      int nConeElemSize = 0;
+      COPTMEX_CALL(COPT_GetAffineCone(prob, i, NULL, &nConeSize, NULL, NULL, NULL, NULL, NULL, NULL, 0, NULL, NULL,
+        NULL, NULL, NULL, NULL, 0, &nConeElemSize));
+
+      mxArray* affcone_type = mxCreateDoubleMatrix(1, 1, mxREAL);
+      mxArray* affcone_A = mxCreateSparse(nConeSize, cprob.nCol, nConeElemSize, mxREAL);
+      mxArray* affcone_b = mxCreateDoubleMatrix(nConeSize, 1, mxREAL);
+      mxArray* affcone_name = NULL;
+
+      int coneType = COPT_CONE_QUAD;
+      int nConeNameSize = 0;
+      char* coneName = NULL;
+
+      cprob.affConst = mxGetDoubles(affcone_b);
+      COPTMEX_CALL(COPT_GetAffineCone(prob, i, &coneType, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0, NULL,
+        cprob.affMatBeg, cprob.affMatCnt, cprob.affMatIdx, cprob.affMatElem, cprob.affConst, nConeElemSize, NULL));
+
+      *mxGetDoubles(affcone_type) = coneType;
+      COPTMEX_CALL(COPTMEX_csr2csc(cprob.affMatBeg, cprob.affMatCnt, cprob.affMatIdx, cprob.affMatElem, affcone_A));
+
+      COPTMEX_CALL(COPT_GetAffineConeName(prob, i, NULL, 0, &nConeNameSize));
+      coneName = (char*)mxCalloc(nConeNameSize + 1, sizeof(char));
+      if (!coneName)
+      {
+        retcode = COPT_RETCODE_MEMORY;
+        goto exit_cleanup;
+      }
+
+      COPTMEX_CALL(COPT_GetAffineConeName(prob, i, coneName, nConeNameSize, NULL));
+      affcone_name = mxCreateString(coneName);
+
+      mxSetField(mprob.affcone, i, COPTMEX_MODEL_AFFCONETYPE, affcone_type);
+      mxSetField(mprob.affcone, i, COPTMEX_MODEL_AFFCONEA, affcone_A);
+      mxSetField(mprob.affcone, i, COPTMEX_MODEL_AFFCONEB, affcone_b);
+      mxSetField(mprob.affcone, i, COPTMEX_MODEL_AFFCONENAME, affcone_name);
+
+      mxFree(coneName);
+    }
+  }
+
   if (cprob.nQElem > 0)
   {
     mprob.qobj = mxCreateSparse(cprob.nCol, cprob.nCol, cprob.nQElem, mxREAL);
@@ -1390,6 +1620,20 @@ int COPTMEX_getModel(copt_prob* prob, int nfiles, const mxArray** in_files, mxAr
     mxSetField(retmodel, 0, COPTMEX_MODEL_CONE, mprob.cone);
   }
 
+  // 'expcone'
+  if (cprob.nExpCone > 0)
+  {
+    mxAddField(retmodel, COPTMEX_MODEL_EXPCONE);
+    mxSetField(retmodel, 0, COPTMEX_MODEL_EXPCONE, mprob.expcone);
+  }
+
+  // 'affcone'
+  if (cprob.nAffCone > 0)
+  {
+    mxAddField(retmodel, COPTMEX_MODEL_AFFCONE);
+    mxSetField(retmodel, 0, COPTMEX_MODEL_AFFCONE, mprob.affcone);
+  }
+
   // 'Q'
   if (cprob.nQElem > 0)
   {
@@ -1431,34 +1675,54 @@ int COPTMEX_setParam(copt_prob* prob, const mxArray* in_param)
   int retcode = 0;
   char msgbuf[COPT_BUFFSIZE];
 
-  int islogging = 1;
+  int islogging = 0;
+  char* logfilename = NULL;
   mxArray* logging = NULL;
-  for (int i = mxGetNumberOfFields(in_param) - 1; i >= 0; --i)
+  mxArray* logname = NULL;
+  for (int i = 0; i < mxGetNumberOfFields(in_param); ++i)
   {
     const char* loggingname = mxGetFieldNameByNumber(in_param, i);
+    if (mystrcmp(loggingname, "LogFile") == 0)
+    {
+      logname = mxGetField(in_param, 0, loggingname);
+      if (!mxIsChar(logname))
+      {
+        snprintf(msgbuf, COPT_BUFFSIZE, "parameter.%s", loggingname);
+        COPTMEX_errorMsg(COPTMEX_ERROR_BAD_TYPE, msgbuf);
+        goto exit_cleanup;
+      }
+
+      COPTMEX_freeString(&logfilename);
+      COPTMEX_CALL(COPTMEX_getString(logname, &logfilename));
+    }
     if (mystrcmp(loggingname, COPT_INTPARAM_LOGGING) == 0)
     {
       logging = mxGetField(in_param, 0, loggingname);
       if (!mxIsScalar(logging) || mxIsChar(logging))
       {
-        snprintf(msgbuf, COPT_BUFFSIZE, "parameter.%s", COPT_INTPARAM_LOGGING);
+        snprintf(msgbuf, COPT_BUFFSIZE, "parameter.%s", loggingname);
         COPTMEX_errorMsg(COPTMEX_ERROR_BAD_TYPE, msgbuf);
         goto exit_cleanup;
       }
 
-      islogging = (int)mxGetScalar(logging);
-      break;
+      islogging = ((int)mxGetScalar(logging) == 1 ? 1 : 0);
     }
   }
 
-  if (islogging == 1)
+  if (islogging)
   {
     COPTMEX_CALL(COPTMEX_dispBanner());
+
+    COPTMEX_CALL(COPT_SetLogCallback(prob, COPTMEX_printLog, NULL));
   }
 
-  if (logging != NULL && islogging == 0)
+  if (logging != NULL)
   {
     COPTMEX_CALL(COPT_SetIntParam(prob, COPT_INTPARAM_LOGGING, islogging));
+  }
+  if (logfilename != NULL)
+  {
+    COPTMEX_CALL(COPT_SetLogFile(prob, logfilename));
   }
 
   for (int i = 0; i < mxGetNumberOfFields(in_param); ++i)
@@ -1467,6 +1731,10 @@ int COPTMEX_setParam(copt_prob* prob, const mxArray* in_param)
     const char* parname = mxGetFieldNameByNumber(in_param, i);
     mxArray* pararray = mxGetField(in_param, 0, parname);
 
+    if (mystrcmp(parname, "LogFile") == 0)
+    {
+      continue;
+    }
     if (mystrcmp(parname, COPT_INTPARAM_LOGGING) == 0)
     {
       continue;
@@ -1508,6 +1776,7 @@ int COPTMEX_setParam(copt_prob* prob, const mxArray* in_param)
   }
 
 exit_cleanup:
+  COPTMEX_freeString(&logfilename);
   return retcode;
 }
 
@@ -1712,38 +1981,14 @@ int COPTMEX_loadConeModel(copt_prob* prob, const mxArray* in_model, int* p_nRow,
   mconeprob.l = mxGetField(mconeprob.K, 0, COPTMEX_MODEL_CONEK_L);
   mconeprob.q = mxGetField(mconeprob.K, 0, COPTMEX_MODEL_CONEK_Q);
   mconeprob.r = mxGetField(mconeprob.K, 0, COPTMEX_MODEL_CONEK_R);
+  mconeprob.ep = mxGetField(mconeprob.K, 0, COPTMEX_MODEL_CONEK_EP);
+  mconeprob.ed = mxGetField(mconeprob.K, 0, COPTMEX_MODEL_CONEK_ED);
   mconeprob.s = mxGetField(mconeprob.K, 0, COPTMEX_MODEL_CONEK_S);
 
   mconeprob.objsen = mxGetField(conedata, 0, COPTMEX_MODEL_CONE_OBJSEN);
   mconeprob.objcon = mxGetField(conedata, 0, COPTMEX_MODEL_CONE_OBJCON);
+  mconeprob.vtype = mxGetField(conedata, 0, COPTMEX_MODEL_CONE_VTYPE);
   mconeprob.Q = mxGetField(conedata, 0, COPTMEX_MODEL_CONE_Q);
-
-  // 'objsen'
-  if (mconeprob.objsen != NULL)
-  {
-    COPTMEX_CALL(COPTMEX_getObjsen(mconeprob.objsen, &cconeprob.nObjSense));
-  }
-  // 'objcon'
-  if (mconeprob.objcon != NULL)
-  {
-    cconeprob.dObjConst = mxGetScalar(mconeprob.objcon);
-  }
-  // 'Q'
-  if (mconeprob.Q != NULL)
-  {
-    cconeprob.nQObjElem = mxGetNzmax(mconeprob.Q);
-
-    cconeprob.qObjRow = (int*)mxCalloc(cconeprob.nQObjElem, sizeof(int));
-    cconeprob.qObjCol = (int*)mxCalloc(cconeprob.nQObjElem, sizeof(int));
-    cconeprob.qObjElem = (double*)mxCalloc(cconeprob.nQObjElem, sizeof(double));
-    if (!cconeprob.qObjRow || !cconeprob.qObjCol || !cconeprob.qObjElem)
-    {
-      retcode = COPT_RETCODE_MEMORY;
-      goto exit_cleanup;
-    }
-
-    COPTMEX_csc2coo(mconeprob.Q, cconeprob.qObjRow, cconeprob.qObjCol, cconeprob.qObjElem);
-  }
 
   // 'c'
   if (mconeprob.c != NULL)
@@ -1850,6 +2095,33 @@ int COPTMEX_loadConeModel(copt_prob* prob, const mxArray* in_model, int* p_nRow,
         }
       }
     }
+    // 'ep'
+    if (mconeprob.ep != NULL)
+    {
+      int nPrimalExpCone = (int)mxGetScalar(mconeprob.ep);
+      cconeprob.nPrimalExpCone = nPrimalExpCone;
+    }
+    // 'ed'
+    if (mconeprob.ed != NULL)
+    {
+      int nDualExpCone = (int)mxGetScalar(mconeprob.ed);
+      cconeprob.nDualExpCone = nDualExpCone;
+    }
+
+    /* Number of scalar columns */
+    cconeprob.nScalarCol += cconeprob.nFree;
+    cconeprob.nScalarCol += cconeprob.nPositive;
+    for (int i = 0; i < cconeprob.nCone; ++i)
+    {
+      cconeprob.nScalarCol += cconeprob.coneDim[i];
+    }
+    for (int i = 0; i < cconeprob.nRotateCone; ++i)
+    {
+      cconeprob.nScalarCol += cconeprob.rotateConeDim[i];
+    }
+    cconeprob.nScalarCol += 3 * cconeprob.nPrimalExpCone;
+    cconeprob.nScalarCol += 3 * cconeprob.nDualExpCone;
+
     // 's'
     if (mconeprob.s != NULL)
     {
@@ -1869,6 +2141,57 @@ int COPTMEX_loadConeModel(copt_prob* prob, const mxArray* in_model, int* p_nRow,
     }
   }
 
+  // 'objsen'
+  if (mconeprob.objsen != NULL)
+  {
+    COPTMEX_CALL(COPTMEX_getObjsen(mconeprob.objsen, &cconeprob.nObjSense));
+  }
+  // 'objcon'
+  if (mconeprob.objcon != NULL)
+  {
+    cconeprob.dObjConst = mxGetScalar(mconeprob.objcon);
+  }
+  // 'vtype'
+  if (mconeprob.vtype != NULL)
+  {
+    if (mxGetNumberOfElements(mconeprob.vtype) == cconeprob.nScalarCol)
+    {
+      COPTMEX_CALL(COPTMEX_getString(mconeprob.vtype, &cconeprob.colType));
+    }
+    else
+    {
+      char* vtype = NULL;
+      COPTMEX_CALL(COPTMEX_getString(mconeprob.vtype, &vtype));
+
+      cconeprob.colType = (char*)mxCalloc(cconeprob.nScalarCol + 1, sizeof(char));
+      if (!cconeprob.colType)
+      {
+        retcode = COPT_RETCODE_MEMORY;
+        goto exit_cleanup;
+      }
+      for (int i = 0; i < cconeprob.nScalarCol; ++i)
+      {
+        cconeprob.colType[i] = vtype[0];
+      }
+    }
+  }
+  // 'Q'
+  if (mconeprob.Q != NULL)
+  {
+    cconeprob.nQObjElem = mxGetNzmax(mconeprob.Q);
+
+    cconeprob.qObjRow = (int*)mxCalloc(cconeprob.nQObjElem, sizeof(int));
+    cconeprob.qObjCol = (int*)mxCalloc(cconeprob.nQObjElem, sizeof(int));
+    cconeprob.qObjElem = (double*)mxCalloc(cconeprob.nQObjElem, sizeof(double));
+    if (!cconeprob.qObjRow || !cconeprob.qObjCol || !cconeprob.qObjElem)
+    {
+      retcode = COPT_RETCODE_MEMORY;
+      goto exit_cleanup;
+    }
+
+    COPTMEX_csc2coo(mconeprob.Q, cconeprob.qObjRow, cconeprob.qObjCol, cconeprob.qObjElem);
+  }
+
   if (p_outMap != NULL)
   {
     outRowMap = (int*)mxCalloc(cconeprob.nRow, sizeof(int));
@@ -1880,12 +2203,12 @@ int COPTMEX_loadConeModel(copt_prob* prob, const mxArray* in_model, int* p_nRow,
   }
 
   // Load cone problem data
-  COPTMEX_CALL(
-    COPT_LoadConeProb(prob, cconeprob.nCol, cconeprob.nRow, cconeprob.nFree, cconeprob.nPositive, 0, cconeprob.nCone,
-      cconeprob.nRotateCone, 0, 0, 0, 0, cconeprob.nPSD, cconeprob.nQObjElem, cconeprob.nObjSense, cconeprob.dObjConst,
-      cconeprob.colObj, cconeprob.qObjRow, cconeprob.qObjCol, cconeprob.qObjElem, cconeprob.colMatBeg, NULL,
-      cconeprob.colMatIdx, cconeprob.colMatElem, cconeprob.rowRhs, NULL, NULL, cconeprob.coneDim,
-      cconeprob.rotateConeDim, NULL, NULL, NULL, NULL, cconeprob.psdDim, NULL, NULL, NULL, NULL, outRowMap));
+  COPTMEX_CALL(COPT_LoadConeProb(prob, cconeprob.nCol, cconeprob.nRow, cconeprob.nFree, cconeprob.nPositive, 0,
+    cconeprob.nCone, cconeprob.nRotateCone, cconeprob.nPrimalExpCone, cconeprob.nDualExpCone, 0, 0, cconeprob.nPSD,
+    cconeprob.nQObjElem, cconeprob.nObjSense, cconeprob.dObjConst, cconeprob.colObj, cconeprob.qObjRow,
+    cconeprob.qObjCol, cconeprob.qObjElem, cconeprob.colMatBeg, NULL, cconeprob.colMatIdx, cconeprob.colMatElem,
+    cconeprob.rowRhs, NULL, NULL, cconeprob.coneDim, cconeprob.rotateConeDim, NULL, NULL, NULL, NULL, cconeprob.psdDim,
+    cconeprob.colType, NULL, NULL, NULL, outRowMap));
 
   if (p_nRow != NULL)
   {
@@ -2010,7 +2333,10 @@ int COPTMEX_loadModel(copt_prob* prob, const mxArray* in_model)
 
   mprob.sos = mxGetField(in_model, 0, COPTMEX_MODEL_SOS);
   mprob.indicator = mxGetField(in_model, 0, COPTMEX_MODEL_INDICATOR);
+
   mprob.cone = mxGetField(in_model, 0, COPTMEX_MODEL_CONE);
+  mprob.expcone = mxGetField(in_model, 0, COPTMEX_MODEL_EXPCONE);
+  mprob.affcone = mxGetField(in_model, 0, COPTMEX_MODEL_AFFCONE);
 
   mprob.qobj = mxGetField(in_model, 0, COPTMEX_MODEL_QUADOBJ);
   mprob.quadcon = mxGetField(in_model, 0, COPTMEX_MODEL_QUADCON);
@@ -2427,6 +2753,89 @@ int COPTMEX_loadModel(copt_prob* prob, const mxArray* in_model)
     }
   }
 
+  // Extract and load the optional exponential cone part
+  if (mprob.expcone != NULL)
+  {
+    for (int i = 0; i < mxGetNumberOfElements(mprob.expcone); ++i)
+    {
+      mxArray* conetype_m = mxGetField(mprob.expcone, i, COPTMEX_MODEL_EXPCONETYPE);
+      mxArray* conevars_m = mxGetField(mprob.expcone, i, COPTMEX_MODEL_EXPCONEVARS);
+
+      int coneType = (int)mxGetScalar(conetype_m);
+      int* coneIdx = (int*)mxCalloc(3, sizeof(int));
+      if (!coneIdx)
+      {
+        retcode = COPT_RETCODE_MEMORY;
+        goto exit_cleanup;
+      }
+
+      double* conevars_data = mxGetDoubles(conevars_m);
+      for (int i = 0; i < 3; ++i)
+      {
+        coneIdx[i] = (int)conevars_data[i] - 1;
+      }
+
+      COPTMEX_CALL(COPT_AddExpCones(prob, 1, &coneType, coneIdx));
+
+      mxFree(coneIdx);
+    }
+  }
+
+  // Extract and load the optional affine cone part
+  if (mprob.affcone != NULL)
+  {
+    int nMaxConeSize = 0;
+    int nMaxConeElemSize = 0;
+    for (int i = 0; i < mxGetNumberOfElements(mprob.affcone); ++i)
+    {
+      mxArray* coneA_m = mxGetField(mprob.affcone, i, COPTMEX_MODEL_AFFCONEA);
+
+      nMaxConeSize = COPTMEX_MAX(nMaxConeSize, mxGetM(coneA_m));
+      nMaxConeElemSize = COPTMEX_MAX(nMaxConeElemSize, mxGetNzmax(coneA_m));
+    }
+
+    cprob.affMatBeg = (int*)mxCalloc(nMaxConeSize, sizeof(int));
+    cprob.affMatCnt = (int*)mxCalloc(nMaxConeSize, sizeof(int));
+    cprob.affMatIdx = (int*)mxCalloc(nMaxConeElemSize, sizeof(int));
+    cprob.affMatElem = (double*)mxCalloc(nMaxConeElemSize, sizeof(double));
+    if (!cprob.affMatBeg || !cprob.affMatCnt || !cprob.affMatIdx || !cprob.affMatElem)
+    {
+      retcode = COPT_RETCODE_MEMORY;
+      goto exit_cleanup;
+    }
+
+    for (int i = 0; i < mxGetNumberOfElements(mprob.affcone); ++i)
+    {
+      mxArray* coneType_m = mxGetField(mprob.affcone, i, COPTMEX_MODEL_AFFCONETYPE);
+      mxArray* coneA_m = mxGetField(mprob.affcone, i, COPTMEX_MODEL_AFFCONEA);
+      mxArray* coneB_m = mxGetField(mprob.affcone, i, COPTMEX_MODEL_AFFCONEB);
+      mxArray* coneName_m = mxGetField(mprob.affcone, i, COPTMEX_MODEL_AFFCONENAME);
+
+      int coneType = (int)mxGetScalar(coneType_m);
+      int coneSize = (int)mxGetM(coneA_m);
+      int coneElemSize = (int)mxGetNzmax(coneA_m);
+      char coneName[COPT_BUFFSIZE] = {0};
+
+      COPTMEX_CALL(COPTMEX_csc2csr(coneA_m, cprob.affMatBeg, cprob.affMatCnt, cprob.affMatIdx, cprob.affMatElem));
+      if (coneB_m != NULL)
+      {
+        cprob.affConst = mxGetDoubles(coneB_m);
+      }
+      else
+      {
+        cprob.affConst = NULL;
+      }
+
+      if (coneName_m != NULL)
+      {
+        mxGetString(coneName_m, coneName, COPT_BUFFSIZE);
+      }
+
+      COPTMEX_CALL(COPT_AddAffineCone(prob, coneType, coneSize, 0, NULL, NULL, NULL, NULL, NULL, cprob.affMatBeg,
+        cprob.affMatCnt, cprob.affMatIdx, cprob.affMatElem, cprob.affConst, coneName));
+    }
+  }
+
   // Extract and load optional Q objective part
   if (mprob.qobj != NULL)
   {
@@ -2716,6 +3125,14 @@ int COPTMEX_loadModel(copt_prob* prob, const mxArray* in_model)
   }
 
 exit_cleanup:
+  if (cprob.colMatBeg != NULL)
+  {
+    mxFree(cprob.colMatBeg);
+  }
+  if (cprob.colMatIdx != NULL)
+  {
+    mxFree(cprob.colMatIdx);
+  }
   if (cprob.colLower != NULL)
   {
     mxFree(cprob.colLower);
@@ -2724,6 +3141,22 @@ exit_cleanup:
   {
     mxFree(cprob.colUpper);
   }
+  if (cprob.colType != NULL)
+  {
+    COPTMEX_freeString(&cprob.colType);
+  }
+  if (cprob.colNames != NULL)
+  {
+    for (int i = 0; i < cprob.nCol; ++i)
+    {
+      if (cprob.colNames[i] != NULL)
+      {
+        COPTMEX_freeString(&cprob.colNames[i]);
+      }
+    }
+    mxFree(cprob.colNames);
+  }
+
   if (cprob.rowLower != NULL)
   {
     mxFree(cprob.rowLower);
@@ -2731,6 +3164,38 @@ exit_cleanup:
   if (cprob.rowUpper != NULL)
   {
     mxFree(cprob.rowUpper);
+  }
+  if (cprob.rowSense != NULL)
+  {
+    COPTMEX_freeString(&cprob.rowSense);
+  }
+  if (cprob.rowNames != NULL)
+  {
+    for (int i = 0; i < cprob.nRow; ++i)
+    {
+      if (cprob.rowNames[i] != NULL)
+      {
+        COPTMEX_freeString(&cprob.rowNames[i]);
+      }
+    }
+    mxFree(cprob.rowNames);
+  }
+
+  if (cprob.affMatBeg != NULL)
+  {
+    mxFree(cprob.affMatBeg);
+  }
+  if (cprob.affMatCnt != NULL)
+  {
+    mxFree(cprob.affMatCnt);
+  }
+  if (cprob.affMatIdx != NULL)
+  {
+    mxFree(cprob.affMatIdx);
+  }
+  if (cprob.affMatElem != NULL)
+  {
+    mxFree(cprob.affMatElem);
   }
   return retcode;
 }
@@ -2970,7 +3435,7 @@ static int COPTMEX_getIIS(copt_prob* prob, mxArray** out_iis)
   }
 
   // Write out IIS problem
-  COPTMEX_CALL(COPT_WriteIIS(prob, "result.iis"));
+  COPTMEX_CALL(COPT_WriteIIS(prob, "copt.iis"));
 
   *out_iis = iisInfo;
 
@@ -3120,7 +3585,7 @@ static int COPTMEX_getFeasRelax(copt_prob* prob, mxArray** out_relax)
   }
 
   // Write out feasibility relaxation problem
-  COPTMEX_CALL(COPT_WriteRelax(prob, "result.relax"));
+  COPTMEX_CALL(COPT_WriteRelax(prob, "copt.relax"));
 
   *out_relax = relaxInfo;
 
@@ -3214,6 +3679,14 @@ int COPTMEX_getDefaultParams(copt_prob* prob, mxArray** out_param)
     mxSetField(defParam, 0, COPT_DBLPARAM_TIMELIMIT, dblParam);
   }
   {
+    // 'soltimelimit'
+    COPTMEX_CALL(COPT_GetDblParamDef(prob, COPT_DBLPARAM_SOLTIMELIMIT, &dDefVal));
+
+    mxArray* dblParam = mxCreateDoubleScalar(dDefVal);
+    mxAddField(defParam, COPT_DBLPARAM_SOLTIMELIMIT);
+    mxSetField(defParam, 0, COPT_DBLPARAM_SOLTIMELIMIT, dblParam);
+  }
+  {
     // 'matrixtol'
     COPTMEX_CALL(COPT_GetDblParamDef(prob, COPT_DBLPARAM_MATRIXTOL, &dDefVal));
 
@@ -3244,6 +3717,14 @@ int COPTMEX_getDefaultParams(copt_prob* prob, mxArray** out_param)
     mxArray* dblParam = mxCreateDoubleScalar(dDefVal);
     mxAddField(defParam, COPT_DBLPARAM_INTTOL);
     mxSetField(defParam, 0, COPT_DBLPARAM_INTTOL, dblParam);
+  }
+  {
+    // 'pdlptol'
+    COPTMEX_CALL(COPT_GetDblParamDef(prob, COPT_DBLPARAM_PDLPTOL, &dDefVal));
+
+    mxArray* dblParam = mxCreateDoubleScalar(dDefVal);
+    mxAddField(defParam, COPT_DBLPARAM_PDLPTOL);
+    mxSetField(defParam, 0, COPT_DBLPARAM_PDLPTOL, dblParam);
   }
   {
     // 'relgap'
@@ -3289,6 +3770,7 @@ int COPTMEX_getDefaultParams(copt_prob* prob, mxArray** out_param)
   /*
    * Integer parameters
    */
+#if 0
   {
     // 'logging'
     COPTMEX_CALL(COPT_GetIntParamDef(prob, COPT_INTPARAM_LOGGING, &nDefVal));
@@ -3305,6 +3787,7 @@ int COPTMEX_getDefaultParams(copt_prob* prob, mxArray** out_param)
     mxAddField(defParam, COPT_INTPARAM_LOGTOCONSOLE);
     mxSetField(defParam, 0, COPT_INTPARAM_LOGTOCONSOLE, intParam);
   }
+#endif
   {
     // 'presolve'
     COPTMEX_CALL(COPT_GetIntParamDef(prob, COPT_INTPARAM_PRESOLVE, &nDefVal));
@@ -3336,6 +3819,22 @@ int COPTMEX_getDefaultParams(copt_prob* prob, mxArray** out_param)
     mxArray* intParam = mxCreateDoubleScalar((double)nDefVal);
     mxAddField(defParam, COPT_INTPARAM_LPMETHOD);
     mxSetField(defParam, 0, COPT_INTPARAM_LPMETHOD, intParam);
+  }
+  {
+    // 'gpumode'
+    COPTMEX_CALL(COPT_GetIntParamDef(prob, COPT_INTPARAM_GPUMODE, &nDefVal));
+
+    mxArray* intParam = mxCreateDoubleScalar((double)nDefVal);
+    mxAddField(defParam, COPT_INTPARAM_GPUMODE);
+    mxSetField(defParam, 0, COPT_INTPARAM_GPUMODE, intParam);
+  }
+  {
+    // 'gpudevice'
+    COPTMEX_CALL(COPT_GetIntParamDef(prob, COPT_INTPARAM_GPUDEVICE, &nDefVal));
+
+    mxArray* intParam = mxCreateDoubleScalar((double)nDefVal);
+    mxAddField(defParam, COPT_INTPARAM_GPUDEVICE);
+    mxSetField(defParam, 0, COPT_INTPARAM_GPUDEVICE, intParam);
   }
   {
     // 'reqfarkasray'
@@ -3426,6 +3925,14 @@ int COPTMEX_getDefaultParams(copt_prob* prob, mxArray** out_param)
     mxSetField(defParam, 0, COPT_INTPARAM_DIVINGHEURLEVEL, intParam);
   }
   {
+    // 'fapheurlevel'
+    COPTMEX_CALL(COPT_GetIntParamDef(prob, COPT_INTPARAM_FAPHEURLEVEL, &nDefVal));
+
+    mxArray* intParam = mxCreateDoubleScalar((double)nDefVal);
+    mxAddField(defParam, COPT_INTPARAM_FAPHEURLEVEL);
+    mxSetField(defParam, 0, COPT_INTPARAM_FAPHEURLEVEL, intParam);
+  }
+  {
     // 'submipheurlevel'
     COPTMEX_CALL(COPT_GetIntParamDef(prob, COPT_INTPARAM_SUBMIPHEURLEVEL, &nDefVal));
 
@@ -3480,6 +3987,14 @@ int COPTMEX_getDefaultParams(copt_prob* prob, mxArray** out_param)
     mxArray* intParam = mxCreateDoubleScalar((double)nDefVal);
     mxAddField(defParam, COPT_INTPARAM_BARORDER);
     mxSetField(defParam, 0, COPT_INTPARAM_BARORDER, intParam);
+  }
+  {
+    // 'barstart'
+    COPTMEX_CALL(COPT_GetIntParamDef(prob, COPT_INTPARAM_BARSTART, &nDefVal));
+
+    mxArray* intParam = mxCreateDoubleScalar((double)nDefVal);
+    mxAddField(defParam, COPT_INTPARAM_BARSTART);
+    mxSetField(defParam, 0, COPT_INTPARAM_BARSTART, intParam);
   }
   {
     // 'bariterlimit'

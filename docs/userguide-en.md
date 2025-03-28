@@ -214,12 +214,46 @@ Fileds on Conic Programming
 
   * `type`
 
-    Type of conic constraint. Options values are: 1 means standard cone, 2 means rotated cone.
+    Type of conic constraint. Options values are: 1 means standard quadratic cone, 2 means rotated quadratic cone.
     Must not be empty.
 
   * `vars`
 
     Index of variables in conic constraint. Must not be empty.
+
+- `expcone`
+
+  Exponential cone constraints. This field is a MATLAB `struct`, and each consists of 2 fields shown below:
+
+  * `type`
+
+    Type of exponential cone constraint. Options values are: 3 means primal exponential cone, 4 means dual exponential cone.
+    Must not be empty.
+
+  * `vars`
+
+    Index of variables in exponential cone constraint. Must not be empty.
+
+- `affcone`
+
+  Affine cone constraints. This field is a MATLAB `struct`, and each consists of 4 fields shown below:
+
+  * `type`
+
+    Type of affine cone constraint. Options values are: 1 means standard quadratic cone, 2 means rotated quadratic cone,
+    3 means primal exponential cone, 4 means dual exponential cone.
+
+  * `A`
+
+    The linear coefficient matrix of affine cone terms. 
+
+  * `b`
+
+    The linear constant terms of affine cone terms.
+
+  * `name`
+
+    The name of affine cone.
 
 Fields on Initial solution
 
@@ -281,6 +315,8 @@ Fields on FeasRelax penalties
 
 Parameter info is of type MATLAB `struct` and stores the parameters for optimization. The fields in the struct can be referred from the COPT reference manual.
 
+Besides, you can specify log file via `LogFile` parameter.
+
 ### Result Information
 
 Result Info is of type MATLAB `struct` and stores the result and status of solution after optimization. Result Info struct contains the following fields:
@@ -312,6 +348,10 @@ Result Info is of type MATLAB `struct` and stores the result and status of solut
   * `'nodelimit'`
 
     Fail to solve the problem within given number of nodes.
+
+  * `'imprecise'`
+
+    Solution is imprecise.
 
   * `'timeout'`
 

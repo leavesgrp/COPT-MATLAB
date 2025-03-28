@@ -9,6 +9,7 @@ end
 
 % Set parameter
 parameter.TimeLimit = 10;
+parameter.LogFile = 'demo_mip.log';
 
 % Read problem
 problem = copt_read(filename);

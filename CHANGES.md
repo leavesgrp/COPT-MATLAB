@@ -1,3 +1,6 @@
+2025-03-25
+Upgrade COPT-MATLAB interface with COPT v7.2.5
+
 2022-07-21
 Upgrade COPT-MATLAB interface with COPT v5.0.2
 

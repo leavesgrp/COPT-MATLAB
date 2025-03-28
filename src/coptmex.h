@@ -34,6 +34,9 @@
   } while (0)
 #endif
 
+#define COPTMEX_MAX(a, b) (((a) > (b)) ? (a) : (b))
+#define COPTMEX_MIN(a, b) (((a) < (b)) ? (a) : (b))
+
 /* The solution status in string format */
 #define COPTMEX_STATUS_UNSTARTED   "unstarted"
 #define COPTMEX_STATUS_OPTIMAL     "optimal"
@@ -42,6 +45,7 @@
 #define COPTMEX_STATUS_INF_OF_UNB  "inf_or_unb"
 #define COPTMEX_STATUS_NUMERICAL   "numerical"
 #define COPTMEX_STATUS_NODELIMIT   "nodelimit"
+#define COPTMEX_STATUS_IMPRECISE   "imprecise"
 #define COPTMEX_STATUS_TIMEOUT     "timeout"
 #define COPTMEX_STATUS_UNFINISHED  "unfinished"
 #define COPTMEX_STATUS_INTERRUPTED "interrupted"
@@ -89,20 +93,33 @@
 #define COPTMEX_MODEL_CONETYPE "type"
 #define COPTMEX_MODEL_CONEVARS "vars"
 
+#define COPTMEX_MODEL_EXPCONE     "expcone"
+#define COPTMEX_MODEL_EXPCONETYPE "type"
+#define COPTMEX_MODEL_EXPCONEVARS "vars"
+
+#define COPTMEX_MODEL_AFFCONE     "affcone"
+#define COPTMEX_MODEL_AFFCONETYPE "type"
+#define COPTMEX_MODEL_AFFCONEA    "A"
+#define COPTMEX_MODEL_AFFCONEB    "b"
+#define COPTMEX_MODEL_AFFCONENAME "name"
+
 #define COPTMEX_MODEL_CONEDATA    "conedata"
 #define COPTMEX_MODEL_CONE_OBJSEN "objsen"
 #define COPTMEX_MODEL_CONE_OBJCON "objcon"
+#define COPTMEX_MODEL_CONE_VTYPE  "vtype"
 #define COPTMEX_MODEL_CONE_C      "c"
 #define COPTMEX_MODEL_CONE_A      "A"
 #define COPTMEX_MODEL_CONE_B      "b"
 #define COPTMEX_MODEL_CONE_K      "K"
 #define COPTMEX_MODEL_CONE_Q      "Q"
 
-#define COPTMEX_MODEL_CONEK_F "f"
-#define COPTMEX_MODEL_CONEK_L "l"
-#define COPTMEX_MODEL_CONEK_Q "q"
-#define COPTMEX_MODEL_CONEK_R "r"
-#define COPTMEX_MODEL_CONEK_S "s"
+#define COPTMEX_MODEL_CONEK_F  "f"
+#define COPTMEX_MODEL_CONEK_L  "l"
+#define COPTMEX_MODEL_CONEK_Q  "q"
+#define COPTMEX_MODEL_CONEK_R  "r"
+#define COPTMEX_MODEL_CONEK_EP "ep"
+#define COPTMEX_MODEL_CONEK_ED "ed"
+#define COPTMEX_MODEL_CONEK_S  "s"
 
 /* The penalty struct fields */
 #define COPTMEX_PENALTY_LBPEN  "lbpen"
@@ -222,6 +239,20 @@ typedef struct coptmex_cprob_s
   int* coneCnt;
   int* coneIdx;
 
+  /* The optional exponential cone part */
+  int nExpCone;
+  int nExpConeSize;
+  int* expConeType;
+  int* expConeIdx;
+
+  /* The optional affine cone part */
+  int nAffCone;
+  int* affMatBeg;
+  int* affMatCnt;
+  int* affMatIdx;
+  double* affMatElem;
+  double* affConst;
+
   /* The optional Q objective part */
   int nQElem;
 
@@ -259,6 +290,12 @@ typedef struct coptmex_mprob_s
   /* The optional cone part of model */
   mxArray* cone;
 
+  /* The optional exponential cone part of model */
+  mxArray* expcone;
+
+  /* The optional affine cone part of model */
+  mxArray* affcone;
+
   /* The optional Q objective part of model */
   mxArray* qobj;
 
@@ -290,6 +327,8 @@ typedef struct coptmex_cconeprob_s
   int nPositive;
   int nCone;
   int nRotateCone;
+  int nPrimalExpCone;
+  int nDualExpCone;
   int nPSD;
 
   int* coneDim;
@@ -297,6 +336,9 @@ typedef struct coptmex_cconeprob_s
   int* psdDim;
 
   double* colObj;
+
+  int nScalarCol;
+  char* colType;
 
   int nQObjElem;
   int* qObjRow;
@@ -322,11 +364,14 @@ typedef struct coptmex_mconeprob_s
   mxArray* l;
   mxArray* q;
   mxArray* r;
+  mxArray* ep;
+  mxArray* ed;
   mxArray* s;
 
   /* Optional parts */
   mxArray* objsen;
   mxArray* objcon;
+  mxArray* vtype;
   mxArray* Q;
 } coptmex_mconeprob;
 
