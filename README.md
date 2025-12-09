@@ -16,14 +16,14 @@
 ```none
 Installing MATLAB interface for Cardinal Optimizer on Windows system...
 Add and save path D:\Tools\copt-mex\lib to MATLAB search path.
-MATLAB interface for COPT v2.0.2 was installed.
+MATLAB interface for COPT v7.2.5 was installed.
 ```
 
 然后切换目录至 `examples` 子目录，执行 `demo_lp`。若已正确配置杉数求解器和本工具包，则输出下述信息：
 
 ```none
-Cardinal Optimizer v2.0.2. Build date Jun 18 2021
-Copyright Cardinal Operations 2021. All Rights Reserved
+Cardinal Optimizer v7.2.5. Build date Jun 18 2025
+Copyright Cardinal Operations 2025. All Rights Reserved
 Setting parameter 'TimeLimit' to 10
 Maximizing an LP problem
 
@@ -159,14 +159,14 @@ Users can change to the directory of our toolbox within the MATLAB command windo
 ```none
 Installing MATLAB interface for Cardinal Optimizer on Windows system...
 Add and save path D:\Tools\copt-mex\lib to MATLAB search path.
-MATLAB interface for COPT v2.0.2 was installed.
+MATLAB interface for COPT v7.2.5 was installed.
 ```
 
 Then you can change to the `examples` sub-directory and execute `demo_lp`. With correct setup and configuration of the Cardinal Optimizer (COPT) and our toolbox, it would output
 
 ```none
-Cardinal Optimizer v2.0.2. Build date Jun 18 2021
-Copyright Cardinal Operations 2021. All Rights Reserved
+Cardinal Optimizer v7.2.5. Build date Mar 21 2025
+Copyright Cardinal Operations 2025. All Rights Reserved
 Setting parameter 'TimeLimit' to 10
 Maximizing an LP problem
 
@@ -201,7 +201,7 @@ in the command window. Otherwise, please check the COPT license file and ensure 
 
 For the advanced users, a customized MATLAB interface is available by modifying the source code of MATLAB interface and re-compiling the code to generate the MEX files. We provide the instructions for different operating systems below.
 
-**Notice**: Users are required to make sure that both `COPT_HOME` and `MATLAB_HOME` environmental variables are set correctly, which point to the installation direcotory of the Cardinal Optimizer and MATLAB software, respectively.
+**Notice**: Users are required to make sure that both `COPT_HOME` and `MATLAB_HOME` environmental variables are set correctly, which point to the installation directory of the Cardinal Optimizer and MATLAB software, respectively.
 
 - Windows
 
