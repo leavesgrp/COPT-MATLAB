@@ -6,7 +6,7 @@ CC     = cl
 CFLAGS = /nologo /O2 /MT /WX /DNDEBUG /DMATLAB_MEX_FILE
 
 C_INCS = -I. -I"$(MATLAB_HOME)\extern\include" -I"$(COPT_HOME)\include"
-C_LIBS = /LIBPATH:"$(COPT_HOME)\lib" copt.lib /LIBPATH:"$(MATLAB_HOME)\extern\lib\win64\microsoft" libmx.lib libmex.lib libmat.lib
+C_LIBS = /LIBPATH:"$(COPT_HOME)\lib" copt.lib /LIBPATH:"$(MATLAB_HOME)\extern\lib\win64\microsoft" libmx.lib libmex.lib libmat.lib libut.lib
 
 C_MEXS = copt_read copt_solve copt_write copt_computeiis copt_feasrelax copt_tune copt_defaultparams
 

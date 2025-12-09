@@ -6,8 +6,7 @@ CC     = clang
 CFLAGS = -O2 -std=c99 -fPIC -Werror -DNDEBUG -DMATLAB_MEX_FILE
 
 C_INCS = -I. -I$(MATLAB_HOME)/extern/include -I$(COPT_HOME)/include
-C_LIBS = -L$(COPT_HOME)/lib -lcopt -L$(MATLAB_HOME)/bin/maci64 -lmx -lmex -lmat
-
+C_LIBS = -L$(COPT_HOME)/lib -lcopt -L$(MATLAB_HOME)/bin/maci64 -lmx -lmex -lmat -lm -lut
 C_MEXS = copt_read copt_solve copt_write copt_computeiis copt_feasrelax copt_tune copt_defaultparams
 
 all: $(C_MEXS)

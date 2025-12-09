@@ -51,6 +51,21 @@ extern int COPT_LoadConeProb(copt_prob* prob,
   char const* const* psdColNames,
   int* outRowMap);
 
+extern int utIsInterruptPending();
+extern void utSetInterruptPending(int);
+
+static int COPT_CALL COPTMEX_interruptCallback(copt_prob *prob, void *cbdata, int cbctx, void *usrdata)
+{
+  int errcode = COPT_RETCODE_OK;
+  if (utIsInterruptPending())
+  {
+    utSetInterruptPending(0);
+    mexPrintf("User interruption detected in MATLAB, stopping...\n");
+    COPT_Interrupt(prob);
+  }
+  return errcode;
+}
+
 static void COPT_CALL COPTMEX_printLog(char* msg, void* userdata)
 {
   if (msg != NULL)
@@ -1927,6 +1942,9 @@ int COPTMEX_solveModel(copt_prob* prob, const mxArray* in_model, int ifRead, mxA
     COPTMEX_CALL(COPTMEX_loadModel(prob, in_model));
   }
 
+  // Set interrupt callback (for MIP only)
+  COPTMEX_CALL(COPT_SetCallback(prob, COPTMEX_interruptCallback, COPT_CBCONTEXT_MIPNODE, NULL));
+
   // Solve the problem
   COPTMEX_CALL(COPT_Solve(prob));
 
@@ -2271,6 +2289,9 @@ int COPTMEX_solveConeModel(copt_prob* prob, const mxArray* in_model, mxArray** o
 
   // Extract and load problem data
   COPTMEX_CALL(COPTMEX_loadConeModel(prob, in_model, &nRow, &outRowMap));
+
+  // Set interrupt callback (for MIP only)
+  COPTMEX_CALL(COPT_SetCallback(prob, COPTMEX_interruptCallback, COPT_CBCONTEXT_MIPNODE, NULL));
 
   // Solve the problem
   COPTMEX_CALL(COPT_Solve(prob));
